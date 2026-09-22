@@ -1,7 +1,28 @@
 {
-  "name": "music-app",
+  "name": "aero",
   "version": "1.0.0",
+  "description": "AERO - Ultra-fast, Apple Liquid Glass-inspired streaming music player for Android built with React Native and Expo.",
   "main": "index.ts",
+  "author": "Adarsh <adarsh-devx> (https://github.com/adarsh-devx)",
+  "license": "MIT",
+  "homepage": "https://github.com/adarsh-devx/AERO#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adarsh-devx/AERO.git"
+  },
+  "bugs": {
+    "url": "https://github.com/adarsh-devx/AERO/issues"
+  },
+  "keywords": [
+    "music-player",
+    "aero",
+    "react-native",
+    "expo",
+    "liquid-glass",
+    "youtube-music",
+    "android-audio",
+    "streaming"
+  ],
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-navigation/native": "^7.4.1",

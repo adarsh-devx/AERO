@@ -1,11 +1,13 @@
 {
   "expo": {
     "name": "Aero",
-    "slug": "music-app",
+    "slug": "aero",
     "version": "1.0.0",
+    "description": "AERO - Ultra-fast Apple Liquid Glass streaming music player for Android",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "primaryColor": "#0a0a0c",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true
     },
