@@ -1,0 +1,8 @@
+{
+  "name": "stream-resolution",
+  "version": "1.0.0",
+  "description": "Native stream resolution module using NewPipeExtractor",
+  "main": "index.ts",
+  "types": "index.ts"
+}
+

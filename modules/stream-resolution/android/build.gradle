@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'host.exp.exponent'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.streamresolution"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // NewPipe Extractor -- GPL-3.0-or-later, (c) Team NewPipe.
+  // Version pinned to match the verified NØTE reference integration.
+  implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.26.5'
+}
+
