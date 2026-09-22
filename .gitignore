@@ -31,11 +31,23 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
 
 # generated native folders
 /ios
-/android
+
+
+# Android generated/build files
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+
+
+# Custom Expo module generated build files
+modules/*/android/build/
