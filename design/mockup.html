@@ -1,0 +1,1234 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meridian — Music Player UI Concept</title>
+    <style>
+      :root {
+        --bg: #0a0a0b;
+        --surface: #141416;
+        --surface-2: #1a1a1d;
+        --glass: rgba(22, 22, 26, 0.65);
+        --glass-nav: rgba(18, 18, 22, 0.6);
+        --border: rgba(255, 255, 255, 0.12);
+        --border-soft: rgba(255, 255, 255, 0.07);
+        --text: #f2f2f4;
+        --text-2: #9a9aa2;
+        --text-3: #6c6c76;
+        --accent: #c8b89a; /* warm ambient, artwork-derived */
+        --radius: 14px;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        background: #050506;
+        font-family:
+          -apple-system, "SF Pro Display", "SF Pro Text", "Segoe UI Variable",
+          "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        color: var(--text);
+        display: flex;
+        gap: 72px;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 64px 40px;
+        flex-wrap: wrap;
+      }
+      .stage {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+      }
+      .stage-label {
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--text-3);
+        font-weight: 600;
+      }
+
+      /* ---------- Phone frame (Exact Apple iPhone Pro Geometry) ---------- */
+      .phone {
+        width: 390px;
+        height: 844px;
+        border-radius: 54px;
+        background: #08080a;
+        padding: 10px;
+        box-shadow:
+          0 0 0 1px rgba(255, 255, 255, 0.08),
+          0 0 0 3px #1e1e22,
+          0 0 0 5px #0a0a0c,
+          0 40px 90px rgba(0, 0, 0, 0.9);
+        position: relative;
+        overflow: hidden;
+      }
+      .screen {
+        width: 100%;
+        height: 100%;
+        border-radius: 44px;
+        overflow: hidden;
+        position: relative;
+        background: var(--bg);
+        /* isolates hardware-accelerated layers so backdrop-filter clips cleanly to rounded corners */
+        transform: translateZ(0);
+        contain: paint;
+      }
+      /* status bar */
+      .statusbar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 52px;
+        z-index: 40;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 30px 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .statusbar .icons {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .statusbar svg {
+        display: block;
+      }
+      /* punch-hole camera */
+      .camera {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #1c1c1f;
+        z-index: 41;
+        box-shadow: inset 0 0 3px #000;
+      }
+
+      /* ---------- Ambient artwork glow (cleanly contained) ---------- */
+      .ambient {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        overflow: hidden;
+      }
+      .ambient::before {
+        content: "";
+        position: absolute;
+        top: -120px;
+        left: -60px;
+        width: 380px;
+        height: 380px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(120, 96, 64, 0.12),
+          transparent 70%
+        );
+      }
+      .ambient::after {
+        content: "";
+        position: absolute;
+        top: 40%;
+        right: -80px;
+        width: 340px;
+        height: 340px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(64, 84, 110, 0.08),
+          transparent 70%
+        );
+      }
+
+      /* ---------- Home screen ---------- */
+      .home {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        overflow-y: auto;
+        scrollbar-width: none;
+        padding: 64px 22px 200px;
+      }
+      .home::-webkit-scrollbar {
+        display: none;
+      }
+      .home-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+      .greeting .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-3);
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      .greeting h1 {
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3a3a40, #232327);
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-2);
+      }
+
+      .section {
+        margin-top: 30px;
+      }
+      .section-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+      .section-head h2 {
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .section-head a {
+        font-size: 13px;
+        color: var(--text-3);
+        text-decoration: none;
+        font-weight: 500;
+      }
+
+      /* recently played — 2-col compact tiles */
+      .recent-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .recent-item {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        background: rgba(24, 24, 28, 0.6);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--border-soft);
+        border-radius: 12px;
+        padding: 8px;
+        overflow: hidden;
+      }
+      .recent-item img {
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+        flex-shrink: 0;
+      }
+      .recent-item .meta {
+        min-width: 0;
+      }
+      .recent-item .t {
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .recent-item .a {
+        font-size: 12px;
+        color: var(--text-2);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-top: 2px;
+      }
+
+      /* horizontal artwork rail */
+      .rail {
+        display: flex;
+        gap: 14px;
+        overflow-x: auto;
+        margin: 0 -22px;
+        padding: 0 22px;
+        scrollbar-width: none;
+      }
+      .rail::-webkit-scrollbar {
+        display: none;
+      }
+      .album-card {
+        width: 150px;
+        flex-shrink: 0;
+      }
+      .album-card img {
+        width: 150px;
+        height: 150px;
+        border-radius: 12px;
+        display: block;
+        border: 1px solid var(--border-soft);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+      }
+      .album-card .t {
+        font-size: 13.5px;
+        font-weight: 600;
+        margin-top: 10px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .album-card .a {
+        font-size: 12.5px;
+        color: var(--text-2);
+        margin-top: 3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* playlist row */
+      .list-row {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        padding: 9px 0;
+      }
+      .list-row img {
+        width: 52px;
+        height: 52px;
+        border-radius: 9px;
+        flex-shrink: 0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+      .list-row .meta {
+        flex: 1;
+        min-width: 0;
+      }
+      .list-row .t {
+        font-size: 14.5px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .list-row .a {
+        font-size: 12.5px;
+        color: var(--text-2);
+        margin-top: 3px;
+      }
+      .list-row .dur {
+        font-size: 12.5px;
+        color: var(--text-3);
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* ---------- Mini player (Apple Glassmorphism) ---------- */
+      .mini {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        bottom: 94px;
+        z-index: 30;
+        background: rgba(26, 26, 30, 0.7);
+        backdrop-filter: blur(36px) saturate(180%);
+        -webkit-backdrop-filter: blur(36px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        box-shadow:
+          inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+          0 14px 34px rgba(0, 0, 0, 0.55);
+        border-radius: 18px;
+        padding: 9px 12px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .mini img {
+        width: 42px;
+        height: 42px;
+        border-radius: 9px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+      }
+      .mini .meta {
+        flex: 1;
+        min-width: 0;
+      }
+      .mini .t {
+        font-size: 13.5px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mini .a {
+        font-size: 12px;
+        color: var(--text-2);
+        margin-top: 2px;
+      }
+      .mini .ctrl {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text);
+      }
+      .mini .progress {
+        position: absolute;
+        left: 12px;
+        right: 12px;
+        bottom: -1px;
+        height: 2.5px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+      }
+      .mini .progress i {
+        display: block;
+        height: 100%;
+        width: 38%;
+        background: var(--accent);
+        border-radius: 2px;
+        opacity: 0.95;
+        box-shadow: 0 0 8px rgba(200, 184, 154, 0.6);
+      }
+
+      /* ---------- Bottom nav (Apple Glassmorphism & Precise Radius) ---------- */
+      .tabbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 88px;
+        z-index: 25;
+        background: linear-gradient(
+          180deg,
+          rgba(20, 20, 24, 0.7) 0%,
+          rgba(12, 12, 14, 0.88) 100%
+        );
+        backdrop-filter: blur(40px) saturate(200%);
+        -webkit-backdrop-filter: blur(40px) saturate(200%);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        border-bottom-left-radius: 44px;
+        border-bottom-right-radius: 44px;
+        box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+        display: flex;
+        justify-content: space-around;
+        align-items: flex-start;
+        padding-top: 14px;
+        padding-bottom: 28px;
+      }
+      .tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        color: var(--text-3);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        transition: all 0.15s ease;
+      }
+      .tab svg {
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+      }
+      .tab.active {
+        color: var(--text);
+      }
+      .tab.active svg {
+        stroke-width: 2.2;
+      }
+      .home-indicator {
+        position: absolute;
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 134px;
+        height: 5px;
+        border-radius: 100px;
+        background: rgba(255, 255, 255, 0.32);
+        z-index: 35;
+        pointer-events: none;
+      }
+
+      /* ---------- Now Playing ---------- */
+      .np {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        overflow: hidden;
+      }
+      .np-bg {
+        position: absolute;
+        inset: 0;
+        background: #0b0b0d;
+      }
+      .np-bg::before {
+        content: "";
+        position: absolute;
+        top: -10%;
+        left: -20%;
+        width: 140%;
+        height: 70%;
+        background: radial-gradient(
+          ellipse at 40% 30%,
+          rgba(122, 98, 66, 0.2),
+          transparent 60%
+        );
+      }
+      .np-bg::after {
+        content: "";
+        position: absolute;
+        bottom: -10%;
+        right: -20%;
+        width: 140%;
+        height: 60%;
+        background: radial-gradient(
+          ellipse at 60% 70%,
+          rgba(58, 72, 96, 0.14),
+          transparent 60%
+        );
+      }
+      .np-content {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 56px 26px 26px;
+      }
+      .np-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .np-top .label {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--text-3);
+        font-weight: 600;
+      }
+      .np-top .icon-btn {
+        color: var(--text-2);
+        cursor: pointer;
+      }
+      .np-art {
+        width: 324px;
+        height: 324px;
+        margin: 18px auto 0;
+        border-radius: 22px;
+        box-shadow:
+          0 24px 60px rgba(0, 0, 0, 0.7),
+          0 4px 16px rgba(0, 0, 0, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .np-art img {
+        width: 100%;
+        height: 100%;
+        border-radius: 22px;
+        display: block;
+      }
+      .np-meta {
+        margin-top: 24px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .np-meta .t {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .np-meta .a {
+        font-size: 15px;
+        color: var(--text-2);
+        margin-top: 5px;
+      }
+      .np-meta .icon-btn {
+        color: var(--text-3);
+        margin-top: 4px;
+        cursor: pointer;
+      }
+
+      .np-progress {
+        margin-top: 24px;
+      }
+      .np-track {
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.12);
+        position: relative;
+        cursor: pointer;
+      }
+      .np-track i {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 42%;
+        background: var(--text);
+        border-radius: 2px;
+      }
+      .np-track b {
+        position: absolute;
+        left: 42%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+      }
+      .np-times {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 9px;
+        font-size: 12px;
+        color: var(--text-3);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .np-controls {
+        margin-top: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .np-controls .side {
+        color: var(--text-2);
+        cursor: pointer;
+      }
+      .np-play {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: #f2f2f4;
+        color: #0a0a0b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        cursor: pointer;
+        transition: transform 0.1s ease;
+      }
+      .np-play:hover {
+        transform: scale(1.04);
+      }
+      .np-secondary {
+        margin-top: 30px;
+        margin-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 14px;
+        color: var(--text-3);
+      }
+      .np-secondary svg {
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ============ SCREEN 1 : HOME ============ -->
+    <div class="stage">
+      <div class="phone">
+        <div class="screen">
+          <div class="ambient"></div>
+          <div class="camera"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <div class="icons">
+              <svg
+                width="17"
+                height="12"
+                viewBox="0 0 17 12"
+                fill="currentColor"
+              >
+                <rect x="0" y="7" width="3" height="5" rx="1" />
+                <rect x="4.5" y="4.5" width="3" height="7.5" rx="1" />
+                <rect x="9" y="2" width="3" height="10" rx="1" />
+                <rect
+                  x="13.5"
+                  y="0"
+                  width="3"
+                  height="12"
+                  rx="1"
+                  opacity=".35"
+                />
+              </svg>
+              <svg
+                width="16"
+                height="12"
+                viewBox="0 0 16 12"
+                fill="currentColor"
+              >
+                <path
+                  d="M8 9.5a2 2 0 0 1 2 2l-2 .5-2-.5a2 2 0 0 1 2-2Zm0-4c1.9 0 3.6.7 4.9 1.9l-1.4 1.5A5 5 0 0 0 8 7.5a5 5 0 0 0-3.5 1.4L3.1 7.4A7 7 0 0 1 8 5.5Zm0-4.5c3 0 5.8 1.2 7.9 3.1l-1.4 1.5A9.4 9.4 0 0 0 8 3a9.4 9.4 0 0 0-6.5 2.6L.1 4.1A11.4 11.4 0 0 1 8 1Z"
+                />
+              </svg>
+              <svg width="25" height="12" viewBox="0 0 25 12">
+                <rect
+                  x=".5"
+                  y=".5"
+                  width="21"
+                  height="11"
+                  rx="3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  opacity=".4"
+                />
+                <rect
+                  x="2"
+                  y="2"
+                  width="15"
+                  height="8"
+                  rx="2"
+                  fill="currentColor"
+                />
+                <path
+                  d="M23 4v4c1-.3 1.6-1 1.6-2S24 4.3 23 4Z"
+                  fill="currentColor"
+                  opacity=".4"
+                />
+              </svg>
+            </div>
+          </div>
+
+          <div class="home">
+            <div class="home-header">
+              <div class="greeting">
+                <div class="eyebrow">Good evening</div>
+                <h1>Listen now</h1>
+              </div>
+              <div class="avatar">JM</div>
+            </div>
+
+            <div class="section">
+              <div class="section-head">
+                <h2>Recently played</h2>
+                <a href="#">See all</a>
+              </div>
+              <div class="recent-grid">
+                <div class="recent-item">
+                  <img
+                    src="https://picsum.photos/seed/meridian1/88/88"
+                    alt=""
+                  />
+                  <div class="meta">
+                    <div class="t">Low Tide</div>
+                    <div class="a">Harbor Lane</div>
+                  </div>
+                </div>
+                <div class="recent-item">
+                  <img
+                    src="https://picsum.photos/seed/meridian2/88/88"
+                    alt=""
+                  />
+                  <div class="meta">
+                    <div class="t">Night Ferry</div>
+                    <div class="a">Oda Marín</div>
+                  </div>
+                </div>
+                <div class="recent-item">
+                  <img
+                    src="https://picsum.photos/seed/meridian3/88/88"
+                    alt=""
+                  />
+                  <div class="meta">
+                    <div class="t">Glasshouse</div>
+                    <div class="a">The Fen</div>
+                  </div>
+                </div>
+                <div class="recent-item">
+                  <img
+                    src="https://picsum.photos/seed/meridian4/88/88"
+                    alt=""
+                  />
+                  <div class="meta">
+                    <div class="t">Slow Signal</div>
+                    <div class="a">Vera Holt</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-head">
+                <h2>Made for you</h2>
+                <a href="#">See all</a>
+              </div>
+              <div class="rail">
+                <div class="album-card">
+                  <img
+                    src="https://picsum.photos/seed/meridian5/300/300"
+                    alt=""
+                  />
+                  <div class="t">Northern Quiet</div>
+                  <div class="a">Elias Wrenn</div>
+                </div>
+                <div class="album-card">
+                  <img
+                    src="https://picsum.photos/seed/meridian6/300/300"
+                    alt=""
+                  />
+                  <div class="t">Copper Season</div>
+                  <div class="a">June Alder</div>
+                </div>
+                <div class="album-card">
+                  <img
+                    src="https://picsum.photos/seed/meridian7/300/300"
+                    alt=""
+                  />
+                  <div class="t">Field Notes</div>
+                  <div class="a">Cassian Roe</div>
+                </div>
+                <div class="album-card">
+                  <img
+                    src="https://picsum.photos/seed/meridian8/300/300"
+                    alt=""
+                  />
+                  <div class="t">After the Rain</div>
+                  <div class="a">Mira Solen</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-head">
+                <h2>Up next for you</h2>
+                <a href="#">See all</a>
+              </div>
+              <div class="list-row">
+                <img
+                  src="https://picsum.photos/seed/meridian9/104/104"
+                  alt=""
+                />
+                <div class="meta">
+                  <div class="t">Undertow</div>
+                  <div class="a">Harbor Lane — Driftwood</div>
+                </div>
+                <div class="dur">4:12</div>
+              </div>
+              <div class="list-row">
+                <img
+                  src="https://picsum.photos/seed/meridian10/104/104"
+                  alt=""
+                />
+                <div class="meta">
+                  <div class="t">Half Light</div>
+                  <div class="a">Vera Holt — Slow Signal</div>
+                </div>
+                <div class="dur">3:47</div>
+              </div>
+              <div class="list-row">
+                <img
+                  src="https://picsum.photos/seed/meridian11/104/104"
+                  alt=""
+                />
+                <div class="meta">
+                  <div class="t">Cartography</div>
+                  <div class="a">Oda Marín — Night Ferry</div>
+                </div>
+                <div class="dur">5:03</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mini player -->
+          <div class="mini">
+            <img src="https://picsum.photos/seed/meridian1/84/84" alt="" />
+            <div class="meta">
+              <div class="t">Low Tide</div>
+              <div class="a">Harbor Lane</div>
+            </div>
+            <div class="ctrl">
+              <svg
+                width="14"
+                height="16"
+                viewBox="0 0 14 16"
+                fill="currentColor"
+              >
+                <rect x="1" y="1" width="4" height="14" rx="1.2" />
+                <rect x="9" y="1" width="4" height="14" rx="1.2" />
+              </svg>
+            </div>
+            <div class="ctrl">
+              <svg
+                width="18"
+                height="14"
+                viewBox="0 0 18 14"
+                fill="currentColor"
+              >
+                <path d="M2 1v12l10-6L2 1Z" />
+                <rect x="13.5" y="1" width="2.5" height="12" rx="1" />
+              </svg>
+            </div>
+            <div class="progress"><i></i></div>
+          </div>
+
+          <!-- Tab bar -->
+          <div class="tabbar">
+            <div class="tab active">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M3 10.5 12 3l9 7.5" />
+                <path d="M5 9.5V21h14V9.5" />
+              </svg>
+              Home
+            </div>
+            <div class="tab">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.8-3.8" />
+              </svg>
+              Search
+            </div>
+            <div class="tab">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              >
+                <rect x="3" y="4" width="18" height="16" rx="2.5" />
+                <path d="M3 9h18" />
+              </svg>
+              Library
+            </div>
+          </div>
+          <div class="home-indicator"></div>
+        </div>
+      </div>
+      <div class="stage-label">Home · Mini Player</div>
+    </div>
+
+    <!-- ============ SCREEN 2 : NOW PLAYING ============ -->
+    <div class="stage">
+      <div class="phone">
+        <div class="screen">
+          <div class="np">
+            <div class="np-bg"></div>
+            <div class="camera"></div>
+            <div class="statusbar">
+              <span>9:41</span>
+              <div class="icons">
+                <svg
+                  width="17"
+                  height="12"
+                  viewBox="0 0 17 12"
+                  fill="currentColor"
+                >
+                  <rect x="0" y="7" width="3" height="5" rx="1" />
+                  <rect x="4.5" y="4.5" width="3" height="7.5" rx="1" />
+                  <rect x="9" y="2" width="3" height="10" rx="1" />
+                  <rect
+                    x="13.5"
+                    y="0"
+                    width="3"
+                    height="12"
+                    rx="1"
+                    opacity=".35"
+                  />
+                </svg>
+                <svg
+                  width="16"
+                  height="12"
+                  viewBox="0 0 16 12"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M8 9.5a2 2 0 0 1 2 2l-2 .5-2-.5a2 2 0 0 1 2-2Zm0-4c1.9 0 3.6.7 4.9 1.9l-1.4 1.5A5 5 0 0 0 8 7.5a5 5 0 0 0-3.5 1.4L3.1 7.4A7 7 0 0 1 8 5.5Zm0-4.5c3 0 5.8 1.2 7.9 3.1l-1.4 1.5A9.4 9.4 0 0 0 8 3a9.4 9.4 0 0 0-6.5 2.6L.1 4.1A11.4 11.4 0 0 1 8 1Z"
+                  />
+                </svg>
+                <svg width="25" height="12" viewBox="0 0 25 12">
+                  <rect
+                    x=".5"
+                    y=".5"
+                    width="21"
+                    height="11"
+                    rx="3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    opacity=".4"
+                  />
+                  <rect
+                    x="2"
+                    y="2"
+                    width="15"
+                    height="8"
+                    rx="2"
+                    fill="currentColor"
+                  />
+                  <path
+                    d="M23 4v4c1-.3 1.6-1 1.6-2S24 4.3 23 4Z"
+                    fill="currentColor"
+                    opacity=".4"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            <div class="np-content">
+              <div class="np-top">
+                <div class="icon-btn">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="m15 5-7 7 7 7" />
+                  </svg>
+                </div>
+                <div class="label">Now Playing</div>
+                <div class="icon-btn">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                  >
+                    <circle
+                      cx="5"
+                      cy="12"
+                      r="1.4"
+                      fill="currentColor"
+                      stroke="none"
+                    />
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="1.4"
+                      fill="currentColor"
+                      stroke="none"
+                    />
+                    <circle
+                      cx="19"
+                      cy="12"
+                      r="1.4"
+                      fill="currentColor"
+                      stroke="none"
+                    />
+                  </svg>
+                </div>
+              </div>
+
+              <div class="np-art">
+                <img
+                  src="https://picsum.photos/seed/meridian1/600/600"
+                  alt="Album artwork"
+                />
+              </div>
+
+              <div class="np-meta">
+                <div>
+                  <div class="t">Low Tide</div>
+                  <div class="a">Harbor Lane — Driftwood</div>
+                </div>
+                <div class="icon-btn">
+                  <svg
+                    width="21"
+                    height="21"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M12 20.5s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.9c0 5.4-7.5 10-7.5 10Z"
+                    />
+                  </svg>
+                </div>
+              </div>
+
+              <div class="np-progress">
+                <div class="np-track"><i></i><b></b></div>
+                <div class="np-times"><span>1:47</span><span>4:12</span></div>
+              </div>
+
+              <div class="np-controls">
+                <div class="side">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M16 4h3v3" />
+                    <path d="M19 4 6 17" />
+                    <path d="M19 13v7h-7" />
+                  </svg>
+                </div>
+                <div class="side" style="color: var(--text)">
+                  <svg
+                    width="30"
+                    height="26"
+                    viewBox="0 0 30 26"
+                    fill="currentColor"
+                  >
+                    <path d="M11 3v20L1 13l10-10Z" />
+                    <path d="M19 3v20l10-10-10-10Z" opacity=".45" />
+                  </svg>
+                </div>
+                <div class="np-play">
+                  <svg
+                    width="26"
+                    height="28"
+                    viewBox="0 0 26 28"
+                    fill="currentColor"
+                  >
+                    <rect x="4" y="3" width="6.5" height="22" rx="1.8" />
+                    <rect x="15.5" y="3" width="6.5" height="22" rx="1.8" />
+                  </svg>
+                </div>
+                <div class="side" style="color: var(--text)">
+                  <svg
+                    width="30"
+                    height="26"
+                    viewBox="0 0 30 26"
+                    fill="currentColor"
+                  >
+                    <path d="M19 3v20l10-10-10-10Z" />
+                    <path d="M11 3v20L1 13l10-10Z" opacity=".45" />
+                  </svg>
+                </div>
+                <div class="side">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M20 5v5h-5" />
+                    <path d="M20 10a8 8 0 1 0 2 5" />
+                  </svg>
+                </div>
+              </div>
+
+              <div class="np-secondary">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M16 4h3v3" />
+                  <path d="M19 4 6 17" />
+                  <path d="M19 13v7h-7" />
+                </svg>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 6h13M4 12h13M4 18h8" />
+                  <circle
+                    cx="19.5"
+                    cy="6"
+                    r="1.2"
+                    fill="currentColor"
+                    stroke="none"
+                  />
+                  <circle
+                    cx="19.5"
+                    cy="12"
+                    r="1.2"
+                    fill="currentColor"
+                    stroke="none"
+                  />
+                  <circle
+                    cx="19.5"
+                    cy="18"
+                    r="1.2"
+                    fill="currentColor"
+                    stroke="none"
+                  />
+                </svg>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                >
+                  <path d="M12 3v13" />
+                  <path d="m7 11 5 5 5-5" />
+                  <path d="M5 21h14" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div class="home-indicator"></div>
+        </div>
+      </div>
+      <div class="stage-label">Now Playing</div>
+    </div>
+  </body>
+</html>
