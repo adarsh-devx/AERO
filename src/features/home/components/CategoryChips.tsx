@@ -17,7 +17,7 @@ const CATEGORIES = [
 ];
 
 type CategoryChipsProps = {
-  onSelectCategory?: (category: string) => void;
+  onSelectCategory?: (category: string | null) => void;
 };
 
 /**
@@ -29,7 +29,7 @@ export function CategoryChips({ onSelectCategory }: CategoryChipsProps) {
   const handlePress = (category: string) => {
     const next = selected === category ? null : category;
     setSelected(next);
-    if (next && onSelectCategory) {
+    if (onSelectCategory) {
       onSelectCategory(next);
     }
   };

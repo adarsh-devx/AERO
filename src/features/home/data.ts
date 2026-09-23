@@ -6,7 +6,7 @@ export interface CardItem {
   subtitle: string;
   badge?: string;
   artworkUri?: string;
-  tracks?: readonly Track[];
+  tracks: readonly Track[];
 }
 
 export interface VideoItem {
@@ -207,6 +207,20 @@ export const trendingPlaylists = {
       artworkUri: 'https://i.ytimg.com/vi/tVlcKp3bWH8/hqdefault.jpg',
       origin: 'online' as const,
     },
+    {
+      id: 'hOHKltAiKXQ',
+      title: 'Big Dawgs',
+      artist: 'Hanumankind',
+      artworkUri: 'https://i.ytimg.com/vi/hOHKltAiKXQ/hqdefault.jpg',
+      origin: 'online' as const,
+    },
+    {
+      id: 'cWMxCE2HTag',
+      title: 'Softly',
+      artist: 'Karan Aujla',
+      artworkUri: 'https://i.ytimg.com/vi/cWMxCE2HTag/hqdefault.jpg',
+      origin: 'online' as const,
+    },
   ],
 };
 
@@ -214,23 +228,113 @@ export const dancingMoods: readonly CardItem[] = [
   {
     id: 'dm-1',
     title: 'Bollywood Dance Hits',
-    subtitle: 'Badshah, Neha Kakkar',
+    subtitle: 'Badshah, Karan Aujla, Honey Singh',
     badge: 'Dance',
     artworkUri: 'https://i.ytimg.com/vi/LK7-_dgAVQE/hqdefault.jpg',
+    tracks: [
+      {
+        id: 'LK7-_dgAVQE',
+        title: 'Tauba Tauba',
+        artist: 'Karan Aujla • Bad Newz',
+        artworkUri: 'https://i.ytimg.com/vi/LK7-_dgAVQE/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'XO8wew38VM8',
+        title: 'Millionaire',
+        artist: 'Yo Yo Honey Singh • GLORY',
+        artworkUri: 'https://i.ytimg.com/vi/XO8wew38VM8/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'ws00PzFk0n0',
+        title: 'Soulmate',
+        artist: 'Badshah, Arijit Singh',
+        artworkUri: 'https://i.ytimg.com/vi/ws00PzFk0n0/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'cWMxCE2HTag',
+        title: 'Softly',
+        artist: 'Karan Aujla, Ikky',
+        artworkUri: 'https://i.ytimg.com/vi/cWMxCE2HTag/hqdefault.jpg',
+        origin: 'online',
+      },
+    ],
   },
   {
     id: 'dm-2',
     title: 'Punjabi Party Anthem',
-    subtitle: 'Diljit Dosanjh, Karan Aujla',
+    subtitle: 'Shubh, Diljit, Karan Aujla',
     badge: 'Party',
-    artworkUri: 'https://i.ytimg.com/vi/cWMxCE2HTag/hqdefault.jpg',
+    artworkUri: 'https://i.ytimg.com/vi/4tywp83zkmk/hqdefault.jpg',
+    tracks: [
+      {
+        id: '4tywp83zkmk',
+        title: 'Cheques',
+        artist: 'Shubh • Still Rollin',
+        artworkUri: 'https://i.ytimg.com/vi/4tywp83zkmk/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: '1pnmyW_iEms',
+        title: 'Baller',
+        artist: 'Shubh, Ikky',
+        artworkUri: 'https://i.ytimg.com/vi/1pnmyW_iEms/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'f94y5kU1F1s',
+        title: 'Winning Speech',
+        artist: 'Karan Aujla, Mxrci',
+        artworkUri: 'https://i.ytimg.com/vi/f94y5kU1F1s/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'VNs_cCtdbPc',
+        title: 'No Love',
+        artist: 'Shubh',
+        artworkUri: 'https://i.ytimg.com/vi/VNs_cCtdbPc/hqdefault.jpg',
+        origin: 'online',
+      },
+    ],
   },
   {
     id: 'dm-3',
-    title: 'Desi EDM & Bass',
-    subtitle: 'Nucleya, Lost Stories',
-    badge: 'Bass',
+    title: 'Global Hype & Hip-Hop',
+    subtitle: 'Hanumankind, The Weeknd, Post Malone',
+    badge: 'Hype',
     artworkUri: 'https://i.ytimg.com/vi/hOHKltAiKXQ/hqdefault.jpg',
+    tracks: [
+      {
+        id: 'hOHKltAiKXQ',
+        title: 'Big Dawgs',
+        artist: 'Hanumankind, Kalmi',
+        artworkUri: 'https://i.ytimg.com/vi/hOHKltAiKXQ/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: '34Na4j8AVgA',
+        title: 'Starboy',
+        artist: 'The Weeknd, Daft Punk',
+        artworkUri: 'https://i.ytimg.com/vi/34Na4j8AVgA/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'ApXoWvfEYVU',
+        title: 'Sunflower',
+        artist: 'Post Malone, Swae Lee',
+        artworkUri: 'https://i.ytimg.com/vi/ApXoWvfEYVU/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: '3IIspaicSnY',
+        title: 'One Dance',
+        artist: 'Drake • Views',
+        artworkUri: 'https://i.ytimg.com/vi/3IIspaicSnY/hqdefault.jpg',
+        origin: 'online',
+      },
+    ],
   },
 ];
 
@@ -240,18 +344,116 @@ export const albumsForYou: readonly CardItem[] = [
     title: 'Still Rollin',
     subtitle: 'Album • Shubh',
     artworkUri: 'https://i.ytimg.com/vi/4tywp83zkmk/hqdefault.jpg',
+    tracks: [
+      {
+        id: '4tywp83zkmk',
+        title: 'Cheques',
+        artist: 'Shubh • Still Rollin',
+        artworkUri: 'https://i.ytimg.com/vi/4tywp83zkmk/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'VNs_cCtdbPc',
+        title: 'No Love',
+        artist: 'Shubh • Still Rollin',
+        artworkUri: 'https://i.ytimg.com/vi/VNs_cCtdbPc/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: '1pnmyW_iEms',
+        title: 'Baller',
+        artist: 'Shubh • Still Rollin',
+        artworkUri: 'https://i.ytimg.com/vi/1pnmyW_iEms/hqdefault.jpg',
+        origin: 'online',
+      },
+    ],
   },
   {
     id: 'af-2',
     title: 'GLORY',
     subtitle: 'Album • Yo Yo Honey Singh',
     artworkUri: 'https://i.ytimg.com/vi/XO8wew38VM8/hqdefault.jpg',
+    tracks: [
+      {
+        id: 'XO8wew38VM8',
+        title: 'Millionaire',
+        artist: 'Yo Yo Honey Singh • GLORY',
+        artworkUri: 'https://i.ytimg.com/vi/XO8wew38VM8/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'LK7-_dgAVQE',
+        title: 'Tauba Tauba (Party Mix)',
+        artist: 'Karan Aujla, Honey Singh',
+        artworkUri: 'https://i.ytimg.com/vi/LK7-_dgAVQE/hqdefault.jpg',
+        origin: 'online',
+      },
+    ],
   },
   {
     id: 'af-3',
     title: 'Making Memories',
     subtitle: 'Album • Karan Aujla, Ikky',
     artworkUri: 'https://i.ytimg.com/vi/cWMxCE2HTag/hqdefault.jpg',
+    tracks: [
+      {
+        id: 'cWMxCE2HTag',
+        title: 'Softly',
+        artist: 'Karan Aujla, Ikky',
+        artworkUri: 'https://i.ytimg.com/vi/cWMxCE2HTag/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'f94y5kU1F1s',
+        title: 'Winning Speech',
+        artist: 'Karan Aujla, Mxrci',
+        artworkUri: 'https://i.ytimg.com/vi/f94y5kU1F1s/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'LK7-_dgAVQE',
+        title: 'Tauba Tauba',
+        artist: 'Karan Aujla',
+        artworkUri: 'https://i.ytimg.com/vi/LK7-_dgAVQE/hqdefault.jpg',
+        origin: 'online',
+      },
+    ],
+  },
+  {
+    id: 'af-4',
+    title: 'Anuv Acoustic Collection',
+    subtitle: 'Album • Anuv Jain',
+    artworkUri: 'https://i.ytimg.com/vi/gVYpkmGz7cI/hqdefault.jpg',
+    tracks: [
+      {
+        id: 'gVYpkmGz7cI',
+        title: 'Husn',
+        artist: 'Anuv Jain',
+        artworkUri: 'https://i.ytimg.com/vi/gVYpkmGz7cI/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'RLzC55ai0eo',
+        title: 'Baarishein',
+        artist: 'Anuv Jain',
+        artworkUri: 'https://i.ytimg.com/vi/RLzC55ai0eo/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'nSgC_TqjB9Y',
+        title: 'Gul',
+        artist: 'Anuv Jain',
+        artworkUri: 'https://i.ytimg.com/vi/nSgC_TqjB9Y/hqdefault.jpg',
+        origin: 'online',
+      },
+      {
+        id: 'EeqwNff_Bq4',
+        title: 'Alag Aasmaan',
+        artist: 'Anuv Jain',
+        artworkUri: 'https://i.ytimg.com/vi/EeqwNff_Bq4/hqdefault.jpg',
+        origin: 'online',
+      },
+    ],
   },
 ];
 

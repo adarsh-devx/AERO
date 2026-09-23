@@ -16,6 +16,7 @@ export const homeColors = {
   text: '#f4f4f5',
   textMuted: '#8a8a8f',
   textFaint: '#5c5c61',
+  accent: '#ff4d6d',
 } as const;
 
 export const homeSpacing = {

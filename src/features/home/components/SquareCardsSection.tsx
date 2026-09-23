@@ -1,7 +1,10 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import type { CardItem } from '../data';
 import { homeColors } from '../theme';
+import { TactilePressable } from '../../common/TactilePressable';
 
 type SquareCardsSectionProps = {
   title: string;
@@ -10,11 +13,48 @@ type SquareCardsSectionProps = {
   onSelectItem: (item: CardItem, index: number) => void;
 };
 
+function SquareArtwork({ item }: { item: CardItem }) {
+  const [loadError, setLoadError] = useState(false);
+  const artworkUri = item.artworkUri ?? (item.tracks && item.tracks[0]?.artworkUri);
+
+  React.useEffect(() => {
+    setLoadError(false);
+  }, [artworkUri]);
+
+  if (artworkUri && !loadError) {
+    return (
+      <View style={styles.artwork}>
+        <Image
+          source={{ uri: artworkUri }}
+          style={styles.artworkImage}
+          resizeMode="cover"
+          onError={() => setLoadError(true)}
+        />
+        {item.badge ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{item.badge}</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
+  // Styled fallback when image is unavailable or failed to load
+  return (
+    <View style={[styles.artwork, styles.fallbackContainer]}>
+      <Ionicons name="musical-notes" size={36} color={homeColors.accent} />
+      {item.badge ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{item.badge}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 /**
  * YouTube Music style square card carousel (Albums, Community playlists, Moods).
  */
-import { TactilePressable } from '../../common/TactilePressable';
-
 export function SquareCardsSection({
   title,
   subtitle,
@@ -39,34 +79,9 @@ export function SquareCardsSection({
             style={styles.card}
             onPress={() => onSelectItem(item, index)}
             accessibilityRole="button"
-            accessibilityLabel={`Open ${item.title}`}
+            accessibilityLabel={`Play ${item.title}`}
           >
-            <View style={styles.artwork}>
-              {item.artworkUri ? (
-                <Image
-                  source={{ uri: item.artworkUri }}
-                  style={styles.artworkImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.gridPlaceholder}>
-                  {/* Multi-cover / Playlist 4-grid look */}
-                  <View style={styles.gridRow}>
-                    <View style={[styles.gridCell, { backgroundColor: '#332222' }]} />
-                    <View style={[styles.gridCell, { backgroundColor: '#223322' }]} />
-                  </View>
-                  <View style={styles.gridRow}>
-                    <View style={[styles.gridCell, { backgroundColor: '#222233' }]} />
-                    <View style={[styles.gridCell, { backgroundColor: '#333322' }]} />
-                  </View>
-                  {item.badge ? (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{item.badge}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              )}
-            </View>
+            <SquareArtwork item={item} />
             <Text style={styles.cardTitle} numberOfLines={1}>
               {item.title}
             </Text>
@@ -106,9 +121,6 @@ const styles = StyleSheet.create({
     width: 140,
     gap: 4,
   },
-  cardPressed: {
-    opacity: 0.8,
-  },
   artwork: {
     width: 140,
     height: 140,
@@ -123,17 +135,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  gridPlaceholder: {
-    width: '100%',
-    height: '100%',
-    position: 'relative',
-  },
-  gridRow: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  gridCell: {
-    flex: 1,
+  fallbackContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1f1f23',
   },
   badge: {
     position: 'absolute',
