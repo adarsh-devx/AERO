@@ -15,6 +15,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../../navigation';
+import { tabStore } from '../../navigation/tabStore';
 import type { Track } from '../../core/types/track';
 import { playerController } from '../../services/composition';
 import { usePlaylists } from '../playlists/usePlaylists';
@@ -29,8 +30,15 @@ import { LiquidGlassView } from '../common/LiquidGlassView';
 type LibraryScreenProps = NativeStackScreenProps<RootStackParamList, 'Library'>;
 
 type FilterType = 'All' | 'Downloads' | 'Playlists' | 'Songs' | 'Albums' | 'Artists';
+type SortType = 'recent' | 'recently_added' | 'alphabetical';
 
 const FILTER_CHIPS: FilterType[] = ['Downloads', 'Playlists', 'Songs', 'Albums', 'Artists'];
+
+const SORT_LABELS: Record<SortType, string> = {
+  recent: 'Recent activity',
+  recently_added: 'Recently added',
+  alphabetical: 'A to Z (Alphabetical)',
+};
 
 interface SampleArtist {
   id: string;
@@ -55,7 +63,7 @@ const SAMPLE_ARTISTS: SampleArtist[] = [
  * Filter Chips:
  * - Downloads, Playlists, Songs, Albums, Artists.
  * Sort & View Toggle:
- * - "Recent activity ⌄" + Grid/List toggle button.
+ * - "Recent activity ⌄" with working Sort Bottom Sheet + Working Grid/List toggle button.
  * Content List:
  * - Downloads (offline tracks with 1-click play & zero internet).
  * - Pinned Liked Music (gradient card + 📌 Auto playlist).
@@ -73,6 +81,9 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
 
   const [activeFilter, setActiveFilter] = useState<FilterType>('All');
   const [isGridView, setIsGridView] = useState(false);
+  const [isSortModalVisible, setIsSortModalVisible] = useState(false);
+  const [sortType, setSortType] = useState<SortType>('recent');
+
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [selectedPlaylistForMenu, setSelectedPlaylistForMenu] = useState<string | null>(null);
@@ -96,6 +107,46 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
     })();
   };
 
+  const handlePlaySongTrack = (track: Track, index: number) => {
+    void (async () => {
+      await playerController.playFromQueue(history, index);
+      navigation.navigate('NowPlaying');
+    })();
+  };
+
+  // Sorted items based on active sortType
+  const sortedDownloads = useMemo(() => {
+    const list = [...downloads];
+    if (sortType === 'alphabetical') {
+      list.sort((a, b) => a.title.localeCompare(b.title));
+    }
+    return list;
+  }, [downloads, sortType]);
+
+  const sortedPlaylists = useMemo(() => {
+    const list = [...playlists];
+    if (sortType === 'alphabetical') {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return list;
+  }, [playlists, sortType]);
+
+  const sortedArtists = useMemo(() => {
+    const list = [...SAMPLE_ARTISTS];
+    if (sortType === 'alphabetical') {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return list;
+  }, [sortType]);
+
+  const sortedSongs = useMemo(() => {
+    const list = history.slice(0, 20);
+    if (sortType === 'alphabetical') {
+      list.sort((a, b) => a.title.localeCompare(b.title));
+    }
+    return list;
+  }, [history, sortType]);
+
   const shouldShowDownloads = activeFilter === 'All' || activeFilter === 'Downloads';
   const shouldShowLiked = activeFilter === 'All' || activeFilter === 'Playlists' || activeFilter === 'Songs';
   const shouldShowPlaylists = activeFilter === 'All' || activeFilter === 'Playlists';
@@ -108,6 +159,7 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Library</Text>
         <View style={styles.headerActions}>
+          {/* History Icon (🕒) -> Opens Recently Played History */}
           <Pressable
             style={styles.iconButton}
             onPress={() => navigation.navigate('RecentlyPlayedHistory')}
@@ -118,9 +170,10 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
             <Ionicons name="time-outline" size={24} color="#ffffff" />
           </Pressable>
 
+          {/* Search Icon (🔍) -> Switches to Search Tab Instantly */}
           <Pressable
             style={styles.iconButton}
-            onPress={() => navigation.navigate('Search')}
+            onPress={() => tabStore.setTab('search')}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Search"
@@ -172,11 +225,19 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
 
       {/* 3. Sort & View Toggle Row */}
       <View style={styles.controlsRow}>
-        <Pressable style={styles.sortButton} hitSlop={6}>
-          <Text style={styles.sortText}>Recent activity</Text>
+        {/* Sort Trigger Button */}
+        <Pressable
+          style={styles.sortButton}
+          onPress={() => setIsSortModalVisible(true)}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={`Sort by: ${SORT_LABELS[sortType]}`}
+        >
+          <Text style={styles.sortText}>{SORT_LABELS[sortType]}</Text>
           <Ionicons name="chevron-down" size={16} color="#ffffff" />
         </Pressable>
 
+        {/* List / Grid View Toggle Button */}
         <Pressable
           style={styles.viewToggleButton}
           onPress={() => setIsGridView((prev) => !prev)}
@@ -192,40 +253,186 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
         </Pressable>
       </View>
 
-      {/* 4. Main Content List */}
+      {/* 4. Main Content List / Grid */}
       <ScrollView
         style={styles.contentScrollView}
         contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom + 140 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Downloads / Offline Tracks Section */}
-        {shouldShowDownloads && downloads.length > 0 ? (
-          <View style={styles.sectionBlock}>
-            {activeFilter === 'All' ? (
-              <Text style={styles.subSectionHeader}>Downloaded ({downloads.length})</Text>
-            ) : null}
-            {downloads.map((track, index) => (
+        {isGridView ? (
+          // ==================== 2-COLUMN GRID VIEW ====================
+          <View style={styles.gridContainer}>
+            {/* Liked Music in Grid */}
+            {shouldShowLiked ? (
               <Pressable
-                key={`dl-${track.id}-${index}`}
-                style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
-                onPress={() => handlePlayDownloadedTrack(index)}
+                style={styles.gridCard}
+                onPress={() => navigation.navigate('LikedSongs')}
                 accessibilityRole="button"
-                accessibilityLabel={`Play downloaded song ${track.title}`}
+                accessibilityLabel="Liked music auto playlist"
               >
-                <View style={styles.downloadArtwork}>
-                  <ArtworkPlaceholder track={track} size={56} borderRadius={8} />
-                  <View style={styles.downloadBadge}>
-                    <Ionicons name="arrow-down-circle" size={16} color="#4cc9f0" />
+                <View style={[styles.gridArtwork, styles.likedGridArtwork]}>
+                  <Ionicons name="heart" size={36} color="#ffffff" />
+                </View>
+                <Text style={styles.gridTitle} numberOfLines={1}>Liked music</Text>
+                <Text style={styles.gridSubtitle} numberOfLines={1}>Auto playlist • {likedTracks.length} tracks</Text>
+              </Pressable>
+            ) : null}
+
+            {/* Playlists in Grid */}
+            {shouldShowPlaylists &&
+              sortedPlaylists.map((playlist) => (
+                <Pressable
+                  key={`grid-pl-${playlist.id}`}
+                  style={styles.gridCard}
+                  onPress={() => navigation.navigate('Playlist', { playlistId: playlist.id })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Playlist ${playlist.name}`}
+                >
+                  <View style={styles.gridArtwork}>
+                    <Ionicons name="musical-notes" size={36} color="#8e8e93" />
                   </View>
+                  <Text style={styles.gridTitle} numberOfLines={1}>{playlist.name}</Text>
+                  <Text style={styles.gridSubtitle} numberOfLines={1}>Playlist • {playlist.tracks.length} tracks</Text>
+                </Pressable>
+              ))}
+
+            {/* Downloads in Grid */}
+            {shouldShowDownloads &&
+              sortedDownloads.map((track, index) => (
+                <Pressable
+                  key={`grid-dl-${track.id}-${index}`}
+                  style={styles.gridCard}
+                  onPress={() => handlePlayDownloadedTrack(index)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Play downloaded song ${track.title}`}
+                >
+                  <View style={styles.gridArtwork}>
+                    <ArtworkPlaceholder track={track} size={150} borderRadius={8} />
+                    <View style={styles.downloadBadge}>
+                      <Ionicons name="arrow-down-circle" size={16} color="#4cc9f0" />
+                    </View>
+                  </View>
+                  <Text style={styles.gridTitle} numberOfLines={1}>{track.title}</Text>
+                  <Text style={styles.gridSubtitle} numberOfLines={1}>{track.artist} • Offline</Text>
+                </Pressable>
+              ))}
+
+            {/* Artists in Grid */}
+            {shouldShowArtists &&
+              sortedArtists.map((artist) => (
+                <Pressable
+                  key={`grid-art-${artist.id}`}
+                  style={styles.gridCard}
+                  onPress={() => navigation.navigate('Artist', { artistName: artist.name })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open artist ${artist.name}`}
+                >
+                  <View style={[styles.gridArtwork, styles.artistGridArtwork]}>
+                    <Ionicons name="person" size={36} color="#8e8e93" />
+                  </View>
+                  <Text style={styles.gridTitle} numberOfLines={1}>{artist.name}</Text>
+                  <Text style={styles.gridSubtitle} numberOfLines={1}>{artist.subscribers}</Text>
+                </Pressable>
+              ))}
+
+            {/* Songs in Grid */}
+            {shouldShowSongs &&
+              sortedSongs.map((track, index) => (
+                <Pressable
+                  key={`grid-song-${track.id}-${index}`}
+                  style={styles.gridCard}
+                  onPress={() => handlePlaySongTrack(track, index)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Play song ${track.title}`}
+                >
+                  <View style={styles.gridArtwork}>
+                    <ArtworkPlaceholder track={track} size={150} borderRadius={8} />
+                  </View>
+                  <Text style={styles.gridTitle} numberOfLines={1}>{track.title}</Text>
+                  <Text style={styles.gridSubtitle} numberOfLines={1}>{track.artist}</Text>
+                </Pressable>
+              ))}
+          </View>
+        ) : (
+          // ==================== 1-COLUMN LIST VIEW ====================
+          <View style={styles.listContainer}>
+            {/* Downloads / Offline Tracks Section */}
+            {shouldShowDownloads && sortedDownloads.length > 0 ? (
+              <View style={styles.sectionBlock}>
+                {activeFilter === 'All' ? (
+                  <Text style={styles.subSectionHeader}>Downloaded ({sortedDownloads.length})</Text>
+                ) : null}
+                {sortedDownloads.map((track, index) => (
+                  <Pressable
+                    key={`dl-${track.id}-${index}`}
+                    style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
+                    onPress={() => handlePlayDownloadedTrack(index)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Play downloaded song ${track.title}`}
+                  >
+                    <View style={styles.downloadArtwork}>
+                      <ArtworkPlaceholder track={track} size={56} borderRadius={8} />
+                      <View style={styles.downloadBadge}>
+                        <Ionicons name="arrow-down-circle" size={16} color="#4cc9f0" />
+                      </View>
+                    </View>
+
+                    <View style={styles.itemMeta}>
+                      <Text style={styles.itemTitle} numberOfLines={1}>
+                        {track.title}
+                      </Text>
+                      <Text style={styles.itemSubtitle} numberOfLines={1}>
+                        {track.artist} • Offline
+                      </Text>
+                    </View>
+
+                    <Pressable
+                      style={styles.itemMenuButton}
+                      hitSlop={8}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        removeDownload(track);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove download"
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#8e8e93" />
+                    </Pressable>
+                  </Pressable>
+                ))}
+              </View>
+            ) : activeFilter === 'Downloads' ? (
+              <View style={styles.emptyFilterState}>
+                <Ionicons name="arrow-down-circle-outline" size={54} color="rgba(255, 255, 255, 0.2)" />
+                <Text style={styles.emptyFilterTitle}>No downloads yet</Text>
+                <Text style={styles.emptyFilterSubtitle}>
+                  Tap the 3-dots menu on any song and select "Download" to save songs for offline playback.
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Pinned Liked Music */}
+            {shouldShowLiked ? (
+              <Pressable
+                style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
+                onPress={() => navigation.navigate('LikedSongs')}
+                accessibilityRole="button"
+                accessibilityLabel="Liked music auto playlist"
+              >
+                <View style={styles.likedArtwork}>
+                  <Ionicons name="heart" size={28} color="#ffffff" />
                 </View>
 
                 <View style={styles.itemMeta}>
                   <Text style={styles.itemTitle} numberOfLines={1}>
-                    {track.title}
+                    Liked music
                   </Text>
-                  <Text style={styles.itemSubtitle} numberOfLines={1}>
-                    {track.artist} • Offline
-                  </Text>
+                  <View style={styles.subtitleRow}>
+                    <Ionicons name="pin" size={13} color="#8e8e93" style={styles.pinIcon} />
+                    <Text style={styles.itemSubtitle} numberOfLines={1}>
+                      Auto playlist • {likedTracks.length} tracks
+                    </Text>
+                  </View>
                 </View>
 
                 <Pressable
@@ -233,156 +440,109 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
                   hitSlop={8}
                   onPress={(e) => {
                     e.stopPropagation();
-                    removeDownload(track);
+                    navigation.navigate('LikedSongs');
                   }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Remove download"
                 >
-                  <Ionicons name="trash-outline" size={18} color="#8e8e93" />
+                  <Ionicons name="ellipsis-vertical" size={18} color="#8e8e93" />
                 </Pressable>
               </Pressable>
-            ))}
+            ) : null}
+
+            {/* User Playlists */}
+            {shouldShowPlaylists &&
+              sortedPlaylists.map((playlist) => (
+                <Pressable
+                  key={playlist.id}
+                  style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
+                  onPress={() => navigation.navigate('Playlist', { playlistId: playlist.id })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Playlist ${playlist.name}`}
+                >
+                  <View style={styles.playlistArtwork}>
+                    <Ionicons name="musical-notes" size={26} color="#8e8e93" />
+                  </View>
+
+                  <View style={styles.itemMeta}>
+                    <Text style={styles.itemTitle} numberOfLines={1}>
+                      {playlist.name}
+                    </Text>
+                    <Text style={styles.itemSubtitle} numberOfLines={1}>
+                      Playlist • Aero • {playlist.tracks.length} tracks
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    style={styles.itemMenuButton}
+                    hitSlop={8}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setSelectedPlaylistForMenu(playlist.id);
+                    }}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={18} color="#8e8e93" />
+                  </Pressable>
+                </Pressable>
+              ))}
+
+            {/* Artists Section */}
+            {shouldShowArtists &&
+              sortedArtists.map((artist) => (
+                <Pressable
+                  key={artist.id}
+                  style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
+                  onPress={() => {
+                    navigation.navigate('Artist', { artistName: artist.name });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open artist ${artist.name}`}
+                >
+                  <View style={styles.artistAvatar}>
+                    <Ionicons name="person" size={24} color="#8e8e93" />
+                  </View>
+
+                  <View style={styles.itemMeta}>
+                    <Text style={styles.itemTitle} numberOfLines={1}>
+                      {artist.name}
+                    </Text>
+                    <Text style={styles.itemSubtitle} numberOfLines={1}>
+                      Artist • {artist.subscribers}
+                    </Text>
+                  </View>
+
+                  <Pressable style={styles.itemMenuButton} hitSlop={8}>
+                    <Ionicons name="ellipsis-vertical" size={18} color="#8e8e93" />
+                  </Pressable>
+                </Pressable>
+              ))}
+
+            {/* Songs View */}
+            {shouldShowSongs &&
+              sortedSongs.map((track, index) => (
+                <Pressable
+                  key={`song-${track.id}-${index}`}
+                  style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
+                  onPress={() => handlePlaySongTrack(track, index)}
+                >
+                  <View style={styles.songArtwork}>
+                    <ArtworkPlaceholder track={track} size={54} borderRadius={8} />
+                  </View>
+
+                  <View style={styles.itemMeta}>
+                    <Text style={styles.itemTitle} numberOfLines={1}>
+                      {track.title}
+                    </Text>
+                    <Text style={styles.itemSubtitle} numberOfLines={1}>
+                      {track.artist}
+                    </Text>
+                  </View>
+
+                  <Pressable style={styles.itemMenuButton} hitSlop={8}>
+                    <Ionicons name="ellipsis-vertical" size={18} color="#8e8e93" />
+                  </Pressable>
+                </Pressable>
+              ))}
           </View>
-        ) : activeFilter === 'Downloads' ? (
-          <View style={styles.emptyFilterState}>
-            <Ionicons name="arrow-down-circle-outline" size={54} color="rgba(255, 255, 255, 0.2)" />
-            <Text style={styles.emptyFilterTitle}>No downloads yet</Text>
-            <Text style={styles.emptyFilterSubtitle}>
-              Tap the 3-dots menu on any song and select "Download" to save songs for offline playback.
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Pinned Liked Music */}
-        {shouldShowLiked ? (
-          <Pressable
-            style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
-            onPress={() => navigation.navigate('LikedSongs')}
-            accessibilityRole="button"
-            accessibilityLabel="Liked music auto playlist"
-          >
-            <View style={styles.likedArtwork}>
-              <Ionicons name="heart" size={28} color="#ffffff" />
-            </View>
-
-            <View style={styles.itemMeta}>
-              <Text style={styles.itemTitle} numberOfLines={1}>
-                Liked music
-              </Text>
-              <View style={styles.subtitleRow}>
-                <Ionicons name="pin" size={13} color="#8e8e93" style={styles.pinIcon} />
-                <Text style={styles.itemSubtitle} numberOfLines={1}>
-                  Auto playlist • {likedTracks.length} tracks
-                </Text>
-              </View>
-            </View>
-
-            <Pressable
-              style={styles.itemMenuButton}
-              hitSlop={8}
-              onPress={(e) => {
-                e.stopPropagation();
-                navigation.navigate('LikedSongs');
-              }}
-            >
-              <Ionicons name="ellipsis-vertical" size={18} color="#8e8e93" />
-            </Pressable>
-          </Pressable>
-        ) : null}
-
-        {/* User Playlists */}
-        {shouldShowPlaylists &&
-          playlists.map((playlist) => (
-            <Pressable
-              key={playlist.id}
-              style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
-              onPress={() => navigation.navigate('Playlist', { playlistId: playlist.id })}
-              accessibilityRole="button"
-              accessibilityLabel={`Playlist ${playlist.name}`}
-            >
-              <View style={styles.playlistArtwork}>
-                <Ionicons name="musical-notes" size={26} color="#8e8e93" />
-              </View>
-
-              <View style={styles.itemMeta}>
-                <Text style={styles.itemTitle} numberOfLines={1}>
-                  {playlist.name}
-                </Text>
-                <Text style={styles.itemSubtitle} numberOfLines={1}>
-                  Playlist • Aero • {playlist.tracks.length} tracks
-                </Text>
-              </View>
-
-              <Pressable
-                style={styles.itemMenuButton}
-                hitSlop={8}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  setSelectedPlaylistForMenu(playlist.id);
-                }}
-              >
-                <Ionicons name="ellipsis-vertical" size={18} color="#8e8e93" />
-              </Pressable>
-            </Pressable>
-          ))}
-
-        {/* Artists Section - Tapping opens full ArtistScreen */}
-        {shouldShowArtists &&
-          SAMPLE_ARTISTS.map((artist) => (
-            <Pressable
-              key={artist.id}
-              style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
-              onPress={() => {
-                navigation.navigate('Artist', { artistName: artist.name });
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Open artist ${artist.name}`}
-            >
-              <View style={styles.artistAvatar}>
-                <Ionicons name="person" size={24} color="#8e8e93" />
-              </View>
-
-              <View style={styles.itemMeta}>
-                <Text style={styles.itemTitle} numberOfLines={1}>
-                  {artist.name}
-                </Text>
-                <Text style={styles.itemSubtitle} numberOfLines={1}>
-                  Artist • {artist.subscribers}
-                </Text>
-              </View>
-
-              <Pressable style={styles.itemMenuButton} hitSlop={8}>
-                <Ionicons name="ellipsis-vertical" size={18} color="#8e8e93" />
-              </Pressable>
-            </Pressable>
-          ))}
-
-        {/* Songs only view */}
-        {shouldShowSongs &&
-          history.slice(0, 15).map((track, index) => (
-            <Pressable
-              key={`song-${track.id}-${index}`}
-              style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
-              onPress={() => navigation.navigate('NowPlaying')}
-            >
-              <View style={styles.songArtwork}>
-                <ArtworkPlaceholder track={track} size={54} borderRadius={8} />
-              </View>
-
-              <View style={styles.itemMeta}>
-                <Text style={styles.itemTitle} numberOfLines={1}>
-                  {track.title}
-                </Text>
-                <Text style={styles.itemSubtitle} numberOfLines={1}>
-                  {track.artist}
-                </Text>
-              </View>
-
-              <Pressable style={styles.itemMenuButton} hitSlop={8}>
-                <Ionicons name="ellipsis-vertical" size={18} color="#8e8e93" />
-              </Pressable>
-            </Pressable>
-          ))}
+        )}
       </ScrollView>
 
       {/* 5. Floating Action Button: + New in Liquid Glass */}
@@ -399,13 +559,66 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
             glowColor="rgba(76, 201, 240, 0.55)"
             style={styles.fabGlassPill}
           >
-            <Ionicons name="add" size={22} color="#4cc9f0" />
+            <Ionicons name="add" size={20} color="#ffffff" />
             <Text style={styles.fabText}>New</Text>
           </LiquidGlassView>
         </TactilePressable>
       </View>
 
-      {/* 6. Create Playlist Modal */}
+      {/* 6. Sort Selection Modal Bottom Sheet */}
+      <Modal
+        visible={isSortModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsSortModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setIsSortModalVisible(false)}
+        >
+          <View style={styles.optionsSheetCard}>
+            <Text style={styles.sortModalHeader}>Sort by</Text>
+            {(['recent', 'recently_added', 'alphabetical'] as SortType[]).map((type) => {
+              const isSelected = sortType === type;
+              return (
+                <Pressable
+                  key={type}
+                  style={styles.sortOptionRow}
+                  onPress={() => {
+                    setSortType(type);
+                    setIsSortModalVisible(false);
+                  }}
+                >
+                  <Ionicons
+                    name={
+                      type === 'recent'
+                        ? 'time-outline'
+                        : type === 'recently_added'
+                          ? 'calendar-outline'
+                          : 'text-outline'
+                    }
+                    size={20}
+                    color={isSelected ? '#4cc9f0' : '#8e8e93'}
+                  />
+                  <Text
+                    style={[
+                      styles.sortOptionText,
+                      isSelected && styles.sortOptionTextActive,
+                    ]}
+                  >
+                    {SORT_LABELS[type]}
+                  </Text>
+                  {isSelected ? (
+                    <Ionicons name="checkmark" size={18} color="#4cc9f0" />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* 7. Create Playlist Dialog Modal */}
       <Modal
         visible={isCreateModalVisible}
         transparent
@@ -420,21 +633,16 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
             <Text style={styles.modalTitle}>New playlist</Text>
             <TextInput
               style={styles.modalInput}
-              placeholder="Title"
+              placeholder="Enter playlist title"
               placeholderTextColor="#8e8e93"
               value={newPlaylistName}
               onChangeText={setNewPlaylistName}
               autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleCreatePlaylist}
             />
             <View style={styles.modalActions}>
               <Pressable
                 style={styles.modalActionCancel}
-                onPress={() => {
-                  setNewPlaylistName('');
-                  setIsCreateModalVisible(false);
-                }}
+                onPress={() => setIsCreateModalVisible(false)}
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </Pressable>
@@ -443,8 +651,8 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
                   styles.modalActionCreate,
                   newPlaylistName.trim().length === 0 && styles.modalActionDisabled,
                 ]}
-                onPress={handleCreatePlaylist}
                 disabled={newPlaylistName.trim().length === 0}
+                onPress={handleCreatePlaylist}
               >
                 <Text style={styles.modalCreateText}>Create</Text>
               </Pressable>
@@ -453,7 +661,7 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
         </Pressable>
       </Modal>
 
-      {/* 7. Playlist Options Menu Modal */}
+      {/* 8. Playlist Options Sheet (Delete) */}
       <Modal
         visible={selectedPlaylistForMenu !== null}
         transparent
@@ -464,28 +672,22 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
           style={styles.modalBackdrop}
           onPress={() => setSelectedPlaylistForMenu(null)}
         >
-          <Pressable style={styles.optionsSheetCard} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.optionsSheetCard}>
             <Pressable
               style={styles.optionsRow}
               onPress={() => {
                 if (selectedPlaylistForMenu) {
                   deletePlaylist(selectedPlaylistForMenu);
+                  setSelectedPlaylistForMenu(null);
                 }
-                setSelectedPlaylistForMenu(null);
               }}
             >
-              <Ionicons name="trash-outline" size={22} color="#ff4d6d" />
-              <Text style={[styles.optionsRowText, { color: '#ff4d6d' }]}>Delete playlist</Text>
+              <Ionicons name="trash-outline" size={20} color="#ff4d4d" />
+              <Text style={[styles.optionsRowText, { color: '#ff4d4d' }]}>
+                Delete playlist
+              </Text>
             </Pressable>
-
-            <Pressable
-              style={styles.optionsRow}
-              onPress={() => setSelectedPlaylistForMenu(null)}
-            >
-              <Ionicons name="close-outline" size={22} color="#ffffff" />
-              <Text style={styles.optionsRowText}>Cancel</Text>
-            </Pressable>
-          </Pressable>
+          </View>
         </Pressable>
       </Modal>
     </View>
@@ -495,14 +697,14 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#030303',
+    backgroundColor: '#0a0a0b',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingVertical: 8,
   },
   headerTitle: {
     fontSize: 26,
@@ -516,43 +718,31 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   iconButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 4,
   },
   avatar: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#7b2cbf',
+    backgroundColor: '#9c27b0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    color: '#ffffff',
-    fontWeight: '700',
     fontSize: 14,
+    fontWeight: '700',
+    color: '#ffffff',
   },
   filterBar: {
-    marginBottom: 12,
+    marginTop: 10,
   },
   filterChipsScroll: {
     paddingHorizontal: 16,
     gap: 8,
   },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  filterChipActive: {
-    backgroundColor: '#ffffff',
-  },
   glassFilterChip: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.28)',
     borderBottomColor: 'rgba(255, 255, 255, 0.06)',
@@ -570,7 +760,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.75)',
   },
   filterChipTextActive: {
-    color: '#ffffff',
+    color: '#4cc9f0',
     fontWeight: '700',
   },
   controlsRow: {
@@ -578,7 +768,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 14,
   },
   sortButton: {
     flexDirection: 'row',
@@ -598,6 +788,9 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: 16,
+    paddingTop: 4,
+  },
+  listContainer: {
     gap: 14,
   },
   sectionBlock: {
@@ -651,11 +844,12 @@ const styles = StyleSheet.create({
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    justifyContent: 'space-between',
+    rowGap: 18,
   },
   gridCard: {
-    width: '47%',
-    gap: 8,
+    width: '47.5%',
+    gap: 6,
   },
   gridArtwork: {
     width: '100%',
@@ -663,6 +857,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: homeColors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: homeColors.border,
+  },
+  likedGridArtwork: {
+    backgroundColor: '#ff4d6d',
+    borderWidth: 0,
+  },
+  artistGridArtwork: {
+    borderRadius: 999,
   },
   gridTitle: {
     fontSize: 14,
@@ -672,11 +877,6 @@ const styles = StyleSheet.create({
   gridSubtitle: {
     fontSize: 12,
     color: '#8e8e93',
-  },
-  likedCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
   },
   likedArtwork: {
     width: 56,
@@ -712,10 +912,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     overflow: 'hidden',
     backgroundColor: homeColors.surface,
-  },
-  imageFill: {
-    width: '100%',
-    height: '100%',
   },
   itemMeta: {
     flex: 1,
@@ -819,10 +1015,40 @@ const styles = StyleSheet.create({
   optionsSheetCard: {
     width: '100%',
     maxWidth: 320,
-    backgroundColor: '#212121',
-    borderRadius: 14,
-    padding: 12,
+    backgroundColor: '#1c1c1e',
+    borderRadius: 16,
+    padding: 16,
     gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  sortModalHeader: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    marginBottom: 4,
+  },
+  sortOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  sortOptionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#ffffff',
+  },
+  sortOptionTextActive: {
+    color: '#4cc9f0',
+    fontWeight: '700',
   },
   optionsRow: {
     flexDirection: 'row',
