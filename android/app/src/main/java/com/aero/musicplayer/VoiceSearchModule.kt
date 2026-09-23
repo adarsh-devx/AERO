@@ -24,8 +24,8 @@ class VoiceSearchModule(reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun startSpeechRecognition(promise: Promise) {
-        val currentActivity = currentActivity
-        if (currentActivity == null) {
+        val activity = reactApplicationContext.currentActivity
+        if (activity == null) {
             promise.reject("E_ACTIVITY_DOES_NOT_EXIST", "Activity does not exist")
             return
         }
@@ -46,7 +46,7 @@ class VoiceSearchModule(reactContext: ReactApplicationContext) :
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
                 putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to search music...")
             }
-            currentActivity.startActivityForResult(intent, SPEECH_REQUEST_CODE)
+            activity.startActivityForResult(intent, SPEECH_REQUEST_CODE)
         } catch (e: Exception) {
             speechPromise?.reject("E_FAILED_TO_START", e.message)
             speechPromise = null
@@ -74,7 +74,7 @@ class VoiceSearchModule(reactContext: ReactApplicationContext) :
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         // No-op
     }
 }
