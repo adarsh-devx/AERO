@@ -21,6 +21,7 @@ import { prewarmTrack } from '../../playback/ExperimentalTrackPreloader';
 import { musicService, playerController, searchHistory } from '../../services/composition';
 import { usePlaybackHistory } from '../history/usePlaybackHistory';
 import { useSearchHistory } from './useSearchHistory';
+import { startVoiceSearch } from './voiceSearch';
 import { homeColors, homeRadius } from '../home/theme';
 import { ArtworkPlaceholder } from '../home/components/ArtworkPlaceholder';
 import { OptionsMenuSheet } from '../nowplaying/components/OptionsMenuSheet';
@@ -166,6 +167,14 @@ export function SearchScreen({ navigation }: SearchScreenProps) {
     setErrorMessage(null);
   };
 
+  const handleVoiceSearch = async () => {
+    const res = await startVoiceSearch();
+    if (res.success && res.query) {
+      setQuery(res.query);
+      void runSearch(res.query);
+    }
+  };
+
   const isShowingResults = submittedQuery.length > 0;
 
   return (
@@ -194,9 +203,7 @@ export function SearchScreen({ navigation }: SearchScreenProps) {
           {/* Mic Icon */}
           <Pressable
             style={styles.micButton}
-            onPress={() => {
-              /* Voice search trigger */
-            }}
+            onPress={() => void handleVoiceSearch()}
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Voice search"
