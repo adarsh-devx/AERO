@@ -51,22 +51,26 @@ jobs:
           EXPO_PUBLIC_YOUTUBE_API_KEY: ${{ secrets.EXPO_PUBLIC_YOUTUBE_API_KEY }}
         run: ./gradlew assembleRelease --no-daemon
 
-      - name: 🏷️ Rename APKs with Aero Branding
+      - name: 🏷️ Prepare Release APKs with Aero Branding
         run: |
-          cd android/app/build/outputs/apk/release
-          for f in app-*-release.apk; do
-            if [ -f "$f" ]; then
-              abi=$(echo "$f" | sed -E 's/app-(.+)-release\.apk/\1/')
-              mv "$f" "Aero-v1.0.0-${abi}.apk"
-            fi
-          done
-          ls -la
+          OUTPUT_DIR="android/app/build/outputs/apk/release"
+          if [ -d "$OUTPUT_DIR" ]; then
+            cd "$OUTPUT_DIR"
+            for f in *.apk; do
+              if [ -f "$f" ] && [[ "$f" != Aero-* ]]; then
+                clean_name=$(echo "$f" | sed -E 's/^app-(.+)-release\.apk/Aero-v1.0.0-\1.apk/' | sed -E 's/^app-release\.apk/Aero-v1.0.0-universal.apk/')
+                mv "$f" "$clean_name" || true
+              fi
+            done
+            ls -la
+          fi
 
       - name: 📤 Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Aero-Music-Release-APK
-          path: android/app/build/outputs/apk/release/Aero-*.apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
           retention-days: 30
 
       - name: 🚀 Publish GitHub Release (On Tag Push)
@@ -74,6 +78,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: "Aero v1.0.0 - Liquid Glass Music Player"
-          files: android/app/build/outputs/apk/release/Aero-*.apk
+          files: android/app/build/outputs/apk/release/*.apk
           generate_release_notes: true
           prerelease: false
