@@ -5,7 +5,6 @@ import { navigationRef } from '../../../navigation/navigationRef';
 import { playerController } from '../../../services/composition';
 import { ArtworkPlaceholder } from './ArtworkPlaceholder';
 import { NextIcon, PauseIcon, PlayIcon } from './Icons';
-import { homeColors } from '../theme';
 import { LiquidGlassView } from '../../common/LiquidGlassView';
 
 type MiniPlayerProps = {
@@ -35,10 +34,6 @@ export function MiniPlayer({ onPress }: MiniPlayerProps) {
 
   const track = snapshot.currentTrack;
   const isPlaying = snapshot.status === 'playing';
-  const progress =
-    snapshot.durationMs && snapshot.durationMs > 0 && snapshot.positionMs !== null
-      ? Math.min(1, snapshot.positionMs / snapshot.durationMs)
-      : 0;
 
   const handleTogglePlay = (e: any) => {
     e.stopPropagation?.();
@@ -70,10 +65,11 @@ export function MiniPlayer({ onPress }: MiniPlayerProps) {
         style={styles.glassPill}
       >
         <View style={styles.contentRow}>
+          {/* Circular Cover Artwork */}
           <ArtworkPlaceholder
             track={track}
             size={MINI_ARTWORK}
-            borderRadius={12}
+            borderRadius={999}
           />
           <View style={styles.meta}>
             <Text style={styles.title} numberOfLines={1}>
@@ -107,13 +103,6 @@ export function MiniPlayer({ onPress }: MiniPlayerProps) {
             <NextIcon size={16} color={snapshot.hasNext ? '#ffffff' : 'rgba(255, 255, 255, 0.3)'} />
           </Pressable>
         </View>
-
-        {/* Laser-Edge Progress Bar tucked along bottom rim */}
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${progress * 100}%` }]}>
-            <View style={styles.laserGlow} />
-          </View>
-        </View>
       </LiquidGlassView>
     </Pressable>
   );
@@ -125,8 +114,7 @@ const styles = StyleSheet.create({
   },
   glassPill: {
     paddingHorizontal: 8,
-    paddingTop: 6,
-    paddingBottom: 4,
+    paddingVertical: 6,
     borderWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.35)',
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
@@ -141,7 +129,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 4,
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   meta: {
     flex: 1,
@@ -184,32 +172,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  progressTrack: {
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 1,
-    marginTop: 4,
-    marginHorizontal: 12,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: 2,
-    backgroundColor: '#ffffff',
-    position: 'relative',
-  },
-  laserGlow: {
-    position: 'absolute',
-    right: 0,
-    top: -1,
-    width: 8,
-    height: 4,
-    backgroundColor: '#4cc9f0',
-    borderRadius: 2,
-    shadowColor: '#4cc9f0',
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 4,
-  },
 });
-
-
