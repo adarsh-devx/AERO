@@ -54,7 +54,7 @@ class VoiceSearchModule(reactContext: ReactApplicationContext) :
     }
 
     override fun onActivityResult(
-        activity: Activity?,
+        activity: Activity,
         requestCode: Int,
         resultCode: Int,
         data: Intent?
