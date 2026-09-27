@@ -15,6 +15,9 @@ export type RootStackParamList = {
   Playlists: undefined;
   Playlist: { playlistId: string };
   Artist: { artistName: string };
+  Album: { albumKey: string };
+  Statistics: undefined;
+  Settings: undefined;
 };
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
