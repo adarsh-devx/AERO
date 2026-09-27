@@ -4,6 +4,17 @@ import { isTrack, trackIdentityKey, getTrackArtworkUri } from '../../core/types/
 import { PLAYBACK_HISTORY_LIMIT, PLAYBACK_HISTORY_STORAGE_KEY } from './constants';
 
 /**
+ * The exact settings surface consumed to gate recording — structurally
+ * satisfied by the app-level SettingsStore (wired in composition).
+ */
+export interface PlaybackHistorySettingsSource {
+  /** Resolves once persisted settings have been read (shared promise). */
+  hydrate(): Promise<void>;
+  /** Current recording preference; valid once hydrate() resolves. */
+  getSnapshot(): { readonly playbackHistoryEnabled: boolean };
+}
+
+/**
  * Persistent playback history, newest first.
  *
  * Framework-free and React-compatible (subscribe/getSnapshot match
@@ -15,12 +26,14 @@ import { PLAYBACK_HISTORY_LIMIT, PLAYBACK_HISTORY_STORAGE_KEY } from './constant
  */
 export class PlaybackHistory {
   private readonly store: KeyValueStore;
+  private readonly settings?: PlaybackHistorySettingsSource;
   private readonly listeners = new Set<() => void>();
   private tracks: readonly Track[] = [];
   private readyPromise: Promise<void> | null = null;
 
-  constructor(store: KeyValueStore) {
+  constructor(store: KeyValueStore, settings?: PlaybackHistorySettingsSource) {
     this.store = store;
+    this.settings = settings;
   }
 
   /** React external-store subscription. */
@@ -48,7 +61,32 @@ export class PlaybackHistory {
     void this.recordInternal(track);
   }
 
+  /**
+   * Clears all playback history: in-memory first (subscribers re-render
+   * immediately), then persisted. Only this store's own key — playlists,
+   * likes, downloads, search history and the playback session are
+   * separate systems and are never touched.
+   */
+  clear(): void {
+    void this.clearInternal();
+  }
+
+  private async clearInternal(): Promise<void> {
+    // Never clear before stored entries load, or a late hydrate would
+    // resurrect them over the empty list.
+    await this.hydrate();
+    this.replace([]);
+    await this.persist();
+  }
+
   private async recordInternal(track: Track): Promise<void> {
+    // Recording can be switched off in Settings: while off nothing new
+    // is persisted, and existing history is never touched (§7).
+    if (this.settings) {
+      await this.settings.hydrate();
+      if (!this.settings.getSnapshot().playbackHistoryEnabled) return;
+    }
+
     // Never write before the existing entries are loaded, or the first
     // recorded track would overwrite stored history.
     await this.hydrate();

@@ -1,11 +1,13 @@
-import { useCallback, useEffect } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '../../navigation';
 import { playerController } from '../../services/composition';
 import { usePlaybackHistory } from './usePlaybackHistory';
+import { useSettings } from '../settings/useSettings';
+import { dedupeNewestFirst } from '../../core/types/songKey';
 import { usePrewarmTracks } from '../../playback/usePrewarmTracks';
 import { homeColors, homeRadius } from '../home/theme';
 import { ArtworkPlaceholder } from '../home/components/ArtworkPlaceholder';
@@ -15,30 +17,45 @@ type RecentlyPlayedScreenProps = NativeStackScreenProps<RootStackParamList, 'Rec
 /**
  * Dedicated Recently Played History screen.
  *
- * Displays the complete playback history in a clean, full-width list.
- * Tapping any track starts playback from that index within the history queue.
+ * Displays the playback history in a clean, full-width list — ONLY the
+ * persisted PlaybackHistory store (real playback-start events), newest
+ * first, deduplicated at DISPLAY time to one entry per canonical song
+ * (the newest record's metadata wins; stored records are never rewritten
+ * or reordered — the list stays strictly chronological). When "Save
+ * listening history" is off, no personalized recent-play data is shown:
+ * the existing empty state renders instead.
+ *
+ * Tapping any track starts playback from that index within the displayed
+ * history queue.
  */
 export function RecentlyPlayedScreen({ navigation }: RecentlyPlayedScreenProps) {
   const insets = useSafeAreaInsets();
   const history = usePlaybackHistory();
+  const { playbackHistoryEnabled } = useSettings();
 
-  // Shared prewarm seam: history[0]'s online track is the most likely tap.
-  usePrewarmTracks(history);
+  // Display-only dedup: newest-first order preserved, one card per song.
+  const displayHistory = useMemo(
+    () => (playbackHistoryEnabled ? dedupeNewestFirst(history) : []),
+    [history, playbackHistoryEnabled],
+  );
+
+  // Shared prewarm seam: the first entry's online track is the most likely tap.
+  usePrewarmTracks(displayHistory);
 
   useEffect(() => {
     navigation.setOptions({
-      headerTitle: `Recently Played${history.length > 0 ? ` (${history.length})` : ''}`,
+      headerTitle: `Recently Played${displayHistory.length > 0 ? ` (${displayHistory.length})` : ''}`,
     });
-  }, [navigation, history.length]);
+  }, [navigation, displayHistory.length]);
 
   const handlePlay = useCallback(
     (index: number) => {
-      void playerController.playFromQueue(history, index);
+      void playerController.playFromQueue(displayHistory, index);
     },
-    [history],
+    [displayHistory],
   );
 
-  if (history.length === 0) {
+  if (displayHistory.length === 0) {
     return (
       <View style={[styles.container, styles.emptyContainer, { paddingTop: 16 }]}>
         <Text style={styles.emptyTitle}>Nothing played yet</Text>
@@ -51,9 +68,13 @@ export function RecentlyPlayedScreen({ navigation }: RecentlyPlayedScreenProps) 
 
   return (
     <View style={styles.container}>
+      {/* Identity-only keys: the display list is identity-unique (the store
+          identity-dedups on record, display dedups by song), so keys stay
+          STABLE across prepends — an index suffix would remount every row
+          on each new play. */}
       <FlatList
-        data={history}
-        keyExtractor={(track, index) => `${track.origin ?? 'unknown'}:${track.id}:${index}`}
+        data={displayHistory}
+        keyExtractor={(track) => `${track.origin ?? 'unknown'}:${track.id}`}
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         renderItem={({ item, index }) => (
           <Pressable

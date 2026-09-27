@@ -1,10 +1,9 @@
 import { useCallback, useEffect } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import type { RootStackParamList } from '../../navigation';
-import type { Track } from '../../core/types/track';
 import { playerController } from '../../services/composition';
 import { useLikedSongs } from './useLikedSongs';
 import { usePrewarmTracks } from '../../playback/usePrewarmTracks';
