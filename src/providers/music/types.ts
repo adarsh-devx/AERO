@@ -49,5 +49,25 @@ export interface MusicProvider {
    * resolution stays behind the stream layer.
    */
   getTrack?(id: string): Promise<Track | null>;
+
+  /**
+   * OPTIONAL real loudness metadata for ONE catalogue item — the
+   * provider-side source for Aero's loudness normalization (the pure
+   * loudness→gain math lives in `playback/loudnessNormalization.ts`; the
+   * application lives in the playback engine, never in screens).
+   *
+   * Only providers with a genuine loudness source implement it; callers
+   * must treat its absence — or a null answer — as "no normalization for
+   * this track" rather than as a failure. Contract:
+   *
+   *  - resolves the source's REAL loudness for exactly this id in the
+   *    source's own documented unit (for the InnerTube player endpoint:
+   *    the `loudnessDb` deviation in dB from YouTube's -14 LUFS target);
+   *  - resolves null when the source has no usable value for this id;
+   *  - never rejects (source/network/parse failures resolve null);
+   *  - never invents a value: local sources without loudness metadata
+   *    return null instead of fabricating one.
+   */
+  getTrackLoudnessDb?(id: string): Promise<number | null>;
 }
 

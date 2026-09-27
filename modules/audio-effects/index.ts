@@ -9,7 +9,13 @@ import { requireNativeModule } from 'expo-modules-core';
  * here — nothing on the JS side ever reads or constructs it.
  */
 export interface AudioEffectsNativeModule {
-  attachLoudness(player: object): void;
+  /**
+   * Attaches/updates the loudness effect at a normalization gain in
+   * millibels (-1500..+300). The native side clamps the same bounds, so no
+   * caller can turn this into a fixed or oversized boost.
+   */
+  attachLoudness(player: object, gainMB: number): void;
+  /** Releases the effect for this player (no effect → no-op). */
   detachLoudness(player: object): void;
 }
 

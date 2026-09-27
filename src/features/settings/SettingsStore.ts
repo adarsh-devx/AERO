@@ -20,6 +20,13 @@ export interface SettingsValues {
   readonly personalizedHomeEnabled: boolean;
   /** The Now Playing screen shows the Lyrics shortcut pill. */
   readonly showLyricsButtonEnabled: boolean;
+  /**
+   * Loudness normalization (Meld-style; ON by default): a bounded
+   * per-track gain derived from the track's REAL loudness metadata.
+   * OFF means no LoudnessEnhancer at all — plain player volume only,
+   * never a hidden amplification layer.
+   */
+  readonly audioNormalizationEnabled: boolean;
 }
 
 /** Persisted envelope: preference values + schema metadata (ONE record). */
@@ -30,7 +37,7 @@ export interface SettingsRecord extends SettingsValues {
 export type SettingsKey = keyof SettingsValues;
 
 /** Screen section a setting is grouped under. */
-export type SettingsSection = 'Search' | 'Privacy' | 'Now Playing';
+export type SettingsSection = 'Search' | 'Privacy' | 'Now Playing' | 'Playback';
 
 /** Settings keys whose value is boolean — exactly the switch rows. */
 type BooleanSettingsKey = {
@@ -94,6 +101,13 @@ export const SETTINGS_DEFINITIONS: readonly SettingDefinition[] = [
     title: 'Show lyrics button',
     description: 'Show the Lyrics shortcut above the player controls.',
   },
+  {
+    key: 'audioNormalizationEnabled',
+    type: 'boolean',
+    section: 'Playback',
+    title: 'Audio normalization',
+    description: 'Balance loudness between songs with a bounded, per-track gain.',
+  },
 ];
 
 /**
@@ -108,6 +122,9 @@ export const DEFAULT_SETTINGS: SettingsValues = {
   playbackHistoryEnabled: true,
   personalizedHomeEnabled: true,
   showLyricsButtonEnabled: true,
+  // Audited Meld default: normalization ON. Every other switch is on too,
+  // so "Reset settings" restores exactly this record.
+  audioNormalizationEnabled: true,
 };
 
 const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS) as readonly SettingsKey[];

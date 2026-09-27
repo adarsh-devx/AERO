@@ -36,7 +36,7 @@ interface SettingsAction {
 }
 
 /** Sections that render boolean settings, in display order. */
-const VALUE_SECTIONS: readonly SettingsSection[] = ['Search', 'Privacy', 'Now Playing'];
+const VALUE_SECTIONS: readonly SettingsSection[] = ['Search', 'Privacy', 'Now Playing', 'Playback'];
 
 /** Only boolean definitions render here (every current setting is a
  *  switch — no other setting types exist anymore). */

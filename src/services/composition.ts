@@ -118,6 +118,19 @@ export const musicService = new MusicService({
 export const settings = new SettingsStore(nativeKeyValueStore);
 void settings.hydrate();
 
+// Loudness normalization follows the ONE persisted switch: push the current
+// value immediately (documented default applies before hydration) and
+// re-push on every change. The engine treats this as the master switch:
+// off → the effect is released at once and stays absent on every future
+// load; on → each load re-derives the bounded gain (-1500..+300 mB) from
+// that track's REAL loudness metadata, or applies nothing when there is
+// none. The setter is a no-op for an unchanged value, and neither
+// direction ever touches player volume.
+playbackEngine.setNormalizationEnabled(settings.getSnapshot().audioNormalizationEnabled);
+settings.subscribe(() => {
+  playbackEngine.setNormalizationEnabled(settings.getSnapshot().audioNormalizationEnabled);
+});
+
 export const playbackHistory = new PlaybackHistory(nativeKeyValueStore, settings);
 
 /**

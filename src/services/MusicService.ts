@@ -1,7 +1,27 @@
-import { isTrack, type Track } from '../core/types/track';
+import { isTrack, trackOrigin, type Track } from '../core/types/track';
 import type { MusicProvider } from '../providers/music/types';
 import type { ResolvedStream, StreamResolver } from '../providers/stream/types';
 import type { PlaybackEngine, PlaybackRequest } from '../playback/types';
+
+/**
+ * Upper bound on how long a play may wait for loudness metadata that is
+ * still in flight when stream resolution has finished. Loudness only
+ * feeds a bounded normalization effect, so after this budget the track
+ * simply plays WITHOUT normalization — audio is never delayed (or failed)
+ * for it, and no value is ever guessed to fill the gap.
+ */
+const LOUDNESS_LOOKUP_TIMEOUT_MS = 4000;
+
+/**
+ * Real loudness metadata already carried by a track, if any. Finite
+ * values only — an absent/invalid field is "no loudness", never coerced
+ * into a number.
+ */
+function existingLoudnessDb(track: Track): number | null {
+  return typeof track.loudnessDb === 'number' && Number.isFinite(track.loudnessDb)
+    ? track.loudnessDb
+    : null;
+}
 
 export interface MusicServiceDependencies {
   /** Registered discovery providers (local, online, ...). At least one. */
@@ -231,11 +251,19 @@ export class MusicService {
     if (!this.playbackEngine) {
       throw new Error('MusicService has no playback engine registered.');
     }
+    const loudnessInflight = this.startLoudnessLookup(track);
     const stream = await this.resolveStream(track);
     // stream.uri is deliberately never logged: it is a signed googlevideo URL,
     // and building that string for a log is cost on the critical path.
     if (request?.isCancelled()) return;
-    await this.playbackEngine.load(stream, track);
+    const loudnessDb = await this.resolveLoudnessDb(track, loudnessInflight);
+    if (request?.isCancelled()) return;
+    // Only a genuinely NEW loudness value produces a modified track; every
+    // other case loads the original track untouched — an unset loudnessDb
+    // stays unset, so the engine applies NO normalization for it.
+    const loadTrack =
+      loudnessDb !== null && loudnessDb !== track.loudnessDb ? { ...track, loudnessDb } : track;
+    await this.playbackEngine.load(stream, loadTrack);
     if (request?.isCancelled()) return;
     // Session-restore resume: position lands strictly between load and play
     // (loaded engine → seek → play), best-effort — a failed seek must never
@@ -248,6 +276,52 @@ export class MusicService {
       }
     }
     await this.playbackEngine.play();
+  }
+
+  /**
+   * In-flight REAL-loudness lookup for a play, or null when none applies:
+   * local tracks get NO lookup at all (their ids are not provider video
+   * ids, and local files carry no loudness metadata), and a track that
+   * already carries loudnessDb needs none either. The returned promise
+   * never rejects and is bounded by LOUDNESS_LOOKUP_TIMEOUT_MS.
+   */
+  private startLoudnessLookup(track: Track): Promise<number | null> | null {
+    if (existingLoudnessDb(track) !== null) return null;
+    if (trackOrigin(track) !== 'online') return null;
+    const capable = [...this.providers.values()].find(
+      (provider) => typeof provider.getTrackLoudnessDb === 'function',
+    );
+    if (!capable) return null;
+    const lookup = capable.getTrackLoudnessDb!(track.id);
+    return new Promise<number | null>((resolve) => {
+      const timer = setTimeout(() => resolve(null), LOUDNESS_LOOKUP_TIMEOUT_MS);
+      lookup.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        () => {
+          clearTimeout(timer);
+          resolve(null);
+        },
+      );
+    });
+  }
+
+  /**
+   * The loudness value for THIS load: the track's own real metadata wins;
+   * otherwise the parallel lookup's answer, if it arrived in time.
+   * Invalid/absent resolves to null — "no normalization", never a guess.
+   */
+  private async resolveLoudnessDb(
+    track: Track,
+    inflight: Promise<number | null> | null,
+  ): Promise<number | null> {
+    const own = existingLoudnessDb(track);
+    if (own !== null) return own;
+    if (inflight === null) return null;
+    const value = await inflight;
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
   }
 
   /** Stop current playback (see PlaybackEngine.stop). */

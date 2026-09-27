@@ -40,6 +40,23 @@ export interface Track {
   /** Duration in milliseconds, when the source provides one. */
   durationMs?: number;
 
+  /**
+   * Real loudness metadata for loudness NORMALIZATION, in dB — populated
+   * ONLY when the source genuinely supplies it (InnerTube player response
+   * `playerConfig.audioConfig.loudnessDb`). Verified against real
+   * responses: it is the loudness DEVIATION from YouTube's -14 LUFS
+   * loudness target (`loudnessDb = perceptualLoudnessDb + 14`), so a
+   * POSITIVE value means "louder than target" (attenuate) and a NEGATIVE
+   * value means "quieter than target" (bounded make-up gain).
+   *
+   * Consumed solely by `computeNormalizationGainMB` to derive the bounded
+   * normalization gain (-1500..+300 mB). Never inferred, never fabricated:
+   * sources without this metadata (local files, search results, Piped
+   * fallbacks) leave it unset, and unset means "no normalization for this
+   * track" — never a default boost.
+   */
+  loudnessDb?: number;
+
   // ── Enriched music metadata ────────────────────────────────────────
   // Every field below is OPTIONAL and populated ONLY when the source
   // genuinely supplies it (file tags via MediaStore, provider responses).

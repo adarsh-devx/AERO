@@ -1,6 +1,10 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true
+    "strict": true,
+    // Pure-logic tests run under `node --test` (node:test + .ts imports),
+    // so they need Node's type definitions and explicit .ts extensions.
+    "types": ["node"],
+    "allowImportingTsExtensions": true
   }
 }

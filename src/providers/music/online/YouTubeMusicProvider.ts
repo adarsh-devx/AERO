@@ -59,6 +59,13 @@ const SUGGESTION_CACHE_TTL_MS = 5 * 60 * 1000;
 /** Bounded so a long typing session cannot grow the cache without limit. */
 const SUGGESTION_CACHE_LIMIT = 50;
 
+/**
+ * How many real loudness values are remembered between plays. Only REAL
+ * finite values are ever stored (a failed/absent answer is not cached),
+ * and the cap keeps a long session from growing the map without bound.
+ */
+const LOUDNESS_CACHE_LIMIT = 200;
+
 /** The only accepted shape of a provider video id (direct id lookup). */
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
@@ -139,6 +146,20 @@ function webRemixClientVersion(): string {
  * Google API terms, while InnerTube (the client API the YouTube/YouTube Music
  * web players themselves use) covers the same discovery need keylessly.
  */
+/**
+ * Reads the player response's REAL loudness — `playerConfig.audioConfig
+ * .loudnessDb`, the deviation in dB from YouTube's -14 LUFS target — or
+ * null when the response carries no usable value.
+ *
+ * Never coerces and never guesses: only a finite number is loudness, so an
+ * absent/odd/malformed field means "no normalization metadata for this
+ * track", never a default.
+ */
+function playerLoudnessDb(data: any): number | null {
+  const raw = data?.playerConfig?.audioConfig?.loudnessDb;
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+}
+
 export class YouTubeMusicProvider implements OnlineMusicProvider {
   readonly id = 'online' as const;
 
@@ -152,6 +173,16 @@ export class YouTubeMusicProvider implements OnlineMusicProvider {
 
   /** In-flight suggestion requests, keyed the same way (no duplicate RPCs). */
   private readonly suggestionInflight = new Map<string, Promise<string[]>>();
+
+  /**
+   * Real loudness values already read from the player endpoint, keyed by
+   * video id (bounded, insertion-ordered). Failures are never remembered,
+   * so a transient error does not become "this track has no loudness".
+   */
+  private readonly loudnessCache = new Map<string, number>();
+
+  /** In-flight loudness requests — ONE player RPC per video id at a time. */
+  private readonly loudnessInflight = new Map<string, Promise<number | null>>();
 
   constructor(fetchFn: typeof fetch = fetch) {
     this.fetchFn = fetchFn;
@@ -275,7 +306,14 @@ export class YouTubeMusicProvider implements OnlineMusicProvider {
    * thumbnail, duration), never a stream URL; audio still comes from the
    * NewPipe-based resolver when the user actually plays the track.
    */
-  private async fetchTrackByPlayer(videoId: string): Promise<Track | null> {
+  /**
+   * ONE keyless InnerTube `youtubei/v1/player` request for a video id —
+   * the raw response, shared by every metadata consumer of this endpoint
+   * (share-link identification and loudness normalization), so a single
+   * play never issues two identical player RPCs just to read two fields.
+   * Metadata-only: it never asks for (and never returns) a stream URL.
+   */
+  private async fetchPlayerResponse(videoId: string): Promise<any> {
     const endpoint = 'https://www.youtube.com/youtubei/v1/player';
     const payload = {
       context: {
@@ -303,7 +341,11 @@ export class YouTubeMusicProvider implements OnlineMusicProvider {
       throw new Error(`InnerTube player HTTP ${response.status}`);
     }
 
-    const data = await response.json();
+    return await response.json();
+  }
+
+  private async fetchTrackByPlayer(videoId: string): Promise<Track | null> {
+    const data = await this.fetchPlayerResponse(videoId);
     const details = data?.videoDetails;
     if (!details || typeof details !== 'object') return null;
     // Identity check: a response about ANY other video identifies nothing.
@@ -319,6 +361,8 @@ export class YouTubeMusicProvider implements OnlineMusicProvider {
         ? thumbs[thumbs.length - 1].url
         : `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
     const lengthSeconds = Number(details.lengthSeconds);
+    // Real loudness from THIS SAME response — read once, never invented.
+    const loudness = playerLoudnessDb(data);
 
     return {
       id: videoId,
@@ -329,7 +373,53 @@ export class YouTubeMusicProvider implements OnlineMusicProvider {
       ...(Number.isFinite(lengthSeconds) && lengthSeconds > 0
         ? { durationMs: Math.round(lengthSeconds * 1000) }
         : {}),
+      // Real loudness carried by THIS response, when present — never a
+      // default. (Absent field → property omitted → no normalization.)
+      ...(loudness !== null ? { loudnessDb: loudness } : {}),
     };
+  }
+
+  /**
+   * Real loudness metadata for ONE video (MusicProvider.getTrackLoudnessDb)
+   * — the input to Aero's bounded normalization gain.
+   *
+   * Cache-first, then one in-flight request per video id, through the SAME
+   * player endpoint the metadata lookup above uses. Never rejects: a
+   * transport/HTTP/parse failure — or a response without the field —
+   * resolves null, which callers read as "no normalization for this
+   * track". Nothing is guessed and nothing is fabricated for local files
+   * (their ids are not video ids, so this answers null immediately).
+   */
+  async getTrackLoudnessDb(videoId: string): Promise<number | null> {
+    if (!VIDEO_ID_PATTERN.test(videoId)) return null;
+
+    const cached = this.loudnessCache.get(videoId);
+    if (cached !== undefined) return cached;
+
+    const inflight = this.loudnessInflight.get(videoId);
+    if (inflight) return inflight;
+
+    const request = this.fetchPlayerResponse(videoId)
+      .then((data) => {
+        const value = playerLoudnessDb(data);
+        if (value !== null) {
+          this.loudnessCache.delete(videoId);
+          this.loudnessCache.set(videoId, value);
+          while (this.loudnessCache.size > LOUDNESS_CACHE_LIMIT) {
+            const oldest = this.loudnessCache.keys().next();
+            if (oldest.done) break;
+            this.loudnessCache.delete(oldest.value);
+          }
+        }
+        return value;
+      })
+      .catch(() => null)
+      .finally(() => {
+        this.loudnessInflight.delete(videoId);
+      });
+
+    this.loudnessInflight.set(videoId, request);
+    return request;
   }
 
   private cacheSuggestions(key: string, items: readonly string[]): void {

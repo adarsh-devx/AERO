@@ -5,6 +5,7 @@ import type { ResolvedStream, StreamMetadata } from '../providers/stream/types';
 import type { Track } from '../core/types/track';
 import { getTrackArtworkUri } from '../core/types/track';
 import { audioEffects } from '../native/audioEffects';
+import { computeNormalizationGainMB } from './loudnessNormalization';
 
 // Initialize the global audio session: background playback + how
 // interruptions (calls, other apps) are handled. On Android this is only
@@ -51,13 +52,26 @@ export class ExpoAudioPlaybackEngine implements PlaybackEngine {
    * mixer-level volume, i.e. REAL playback gain — not React state and not
    * the device stream volume. 1.0 = full scale; this engine never writes a
    * value above it (the volume path has no boost/EQ/limiter — maximum
-   * loudness comes from a separate, FIXED native LoudnessEnhancer layer
-   * attached in requirePlayer(), never from a volume above 1.0). Kept as
+   * loudness comes from a separate, per-track native LoudnessEnhancer
+   * layer driven by REAL track loudness metadata (applyNormalization),
+   * never from a volume above 1.0). Kept as
    * engine-local state so it survives track changes, pause/resume,
    * background and lock-screen operation without touching position, queue
    * or metadata, and re-asserted on creation and after every load.
    */
   private volume = 1;
+  /**
+   * Whether loudness normalization may attach its effect at all — the
+   * Audio Normalization setting (ON by default). It gates ONLY the effect:
+   * it never reads or writes player volume.
+   */
+  private normalizationEnabled = true;
+  /**
+   * REAL loudness of the track currently loaded, exactly as the source
+   * supplied it (null = none known / not loaded). Never invented here:
+   * it is only ever assigned from `track.loudnessDb`.
+   */
+  private currentLoudnessDb: number | null = null;
   private readonly listeners = new Set<(state: PlaybackState) => void>();
 
   onStateChange(listener: (state: PlaybackState) => void): () => void {
@@ -78,6 +92,14 @@ export class ExpoAudioPlaybackEngine implements PlaybackEngine {
     // Belt-and-braces for volume: mixer-level, but re-asserted so no
     // load can ever start audio at a level other than the user's chosen one.
     this.applyVolume(player);
+    // Loudness normalization for THIS track: attached only when the setting
+    // is on and this track carries REAL loudness; otherwise the effect is
+    // released, so the previous track's gain can never leak into this one.
+    this.currentLoudnessDb =
+      typeof track?.loudnessDb === 'number' && Number.isFinite(track.loudnessDb)
+        ? track.loudnessDb
+        : null;
+    this.applyNormalization(player);
     this.currentTrackId = stream.trackId;
     this.activeStream = stream.metadata ?? null;
     this.lastStatus = null;
@@ -179,6 +201,47 @@ export class ExpoAudioPlaybackEngine implements PlaybackEngine {
   }
 
   /**
+   * Meld-style normalization for the CURRENT track, applied on every load
+   * and on every settings change:
+   *
+   *   - setting OFF → no effect (release whatever is attached);
+   *   - no REAL loudness for this track → no effect (release it), so a
+   *     track with a gain (A) followed by a track without (B) leaves B
+   *     playing clean — A's gain never survives the transition;
+   *   - both present → attach with THIS track's bounded gain
+   *     (-1500..+300 mB), replacing any previous gain in place.
+   *
+   * Player volume is untouched: user volume (0..1) × sleep fade × focus
+   * duck stay the only volume factors, and the effect is a separate
+   * AudioFlinger insert on the player's own audio session.
+   */
+  private applyNormalization(player: AudioPlayer): void {
+    const gainMB = this.normalizationEnabled
+      ? computeNormalizationGainMB(this.currentLoudnessDb)
+      : null;
+    if (gainMB === null) {
+      // No usable normalization for this track: release, never carry over.
+      audioEffects.detach(player);
+      return;
+    }
+    audioEffects.attach(player, gainMB);
+  }
+
+  /**
+   * Master switch for loudness normalization (the Audio Normalization
+   * setting). Off → the effect is released immediately and no future load
+   * attaches one; on → the CURRENT track's normalization is re-applied at
+   * once (or stays absent when that track has no loudness). Never touches
+   * player volume, position, queue or the loaded media.
+   */
+  setNormalizationEnabled(enabled: boolean): void {
+    const next = enabled === true;
+    if (next === this.normalizationEnabled) return;
+    this.normalizationEnabled = next;
+    if (this.player) this.applyNormalization(this.player);
+  }
+
+  /**
    * expo-audio has no hard "stop"; stopping means pausing and seeking
    * to the start. The player instance stays alive for the next load.
    */
@@ -218,13 +281,9 @@ export class ExpoAudioPlaybackEngine implements PlaybackEngine {
   private requirePlayer(): AudioPlayer {
     if (!this.player) {
       const player = createAudioPlayer(null, { updateInterval: 500 });
-      // Maximum-loudness layer: keeps a bounded Android LoudnessEnhancer
-      // (+600 mB, applied inside AudioFlinger on the player's REAL audio
-      // session — never by raising player volume) attached for this
-      // player's whole life. Idempotent and inert until Media3 reports the
-      // session id (first playback); degrades to plain 1.0 playback when
-      // the native module is absent (Expo Go / non-Android).
-      audioEffects.attach(player);
+      // NOTE: no effect is attached here. Loudness normalization is
+      // per-track (applyNormalization, on every load), so a freshly created
+      // player starts with NO effect rather than a fixed boost.
       // A volume chosen before the player existed applies here; at creation this
       // matches the native default (1.0), making the invariant explicit.
       this.applyVolume(player);
