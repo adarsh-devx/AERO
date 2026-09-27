@@ -44,8 +44,12 @@
       </intent-filter>
     </service>
     <!-- Aero's media notification / lock-screen service. stopWithTask=false
-         so swiping the app away never stops background playback or removes
-         the media notification — the audio path (expo-audio) is untouched. -->
+         keeps Android from killing the service behind our backs so that
+         MediaPlaybackService.onTaskRemoved can run its own ordered cleanup
+         on Recents swipe: stop playback via the JS command bridge, remove
+         the media notification, release the session, stopSelf(). Normal
+         background playback (Home / app switch / screen off) never reaches
+         onTaskRemoved and is unaffected. -->
     <service
       android:name="expo.modules.mediacontrols.MediaPlaybackService"
       android:exported="false"

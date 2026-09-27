@@ -45,9 +45,11 @@ import java.util.concurrent.Executors
  *
  * Lifecycle: started as a foreground service (mediaPlayback type) while
  * audio is active; `state == "stopped"` (or JS stop) hides the
- * notification and exits. `stopWithTask="false"` in the manifest means
- * swiping the app away does NOT touch this service — background audio
- * and the notification survive exactly as before.
+ * notification and exits. Swiping Aero away from Recent Apps triggers
+ * `onTaskRemoved`, which stops JS playback through the existing command
+ * bridge, retires the notification/session and stops this service —
+ * while Home, lock-screen, app switching and screen-off NEVER reach that
+ * callback, so normal background playback is untouched.
  */
 class MediaPlaybackService : android.app.Service() {
   companion object {
@@ -149,6 +151,36 @@ class MediaPlaybackService : android.app.Service() {
       else refreshNotification()
     }
     return START_NOT_STICKY
+  }
+
+  /**
+   * The user swiped Aero's task away from Recent Apps.
+   *
+   * This is the ONE Android lifecycle callback that distinguishes task
+   * removal from every other backgrounding path (Home, app switch, screen
+   * off, lock — none of which reach it). Cleanup order:
+   *
+   *  1. `stop` through the existing command bridge: MediaControlsBridge
+   *     routes it into PlayerController.stop() — the same stop the session's
+   *     onStop uses, so no second playback-stop path is invented. Audio
+   *     (expo-audio) stops in the still-alive JS process.
+   *  2. Native teardown of what THIS service owns: playback state → STOPPED,
+   *     session deactivated here, foreground notification removed
+   *     (teardownNotification) — and the session is released by onDestroy
+   *     when stopSelf() lands.
+   *  3. stopSelf() so the service never lingers after the task is gone.
+   *
+   * Every onStartCommand path already returns START_NOT_STICKY, so neither
+   * this event nor the subsequent stopSelf() can restart the service. The
+   * bridge emit is fire-and-forget: if no JS bridge exists, the native
+   * teardown below still completes, so the service and notification can
+   * never be left behind.
+   */
+  override fun onTaskRemoved(rootIntent: Intent?) {
+    emit("stop", null)
+    teardownNotification()
+    stopSelf()
+    super.onTaskRemoved(rootIntent)
   }
 
   override fun onDestroy() {
