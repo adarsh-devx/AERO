@@ -1,14 +1,20 @@
-import { useSyncExternalStore } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { navigationRef } from '../../navigation/navigationRef';
-import { playerController } from '../../services/composition';
+import { usePlayerSelector } from '../../playback/usePlayerSelector';
 import { MiniPlayer } from '../home/components/MiniPlayer';
-import { homeColors } from '../home/theme';
 
 type GlobalPlayerLayerProps = {
   isNowPlayingActive?: boolean;
+  /**
+   * Route-aware visibility for the Settings screen: Settings is a utility
+   * screen, so the floating MiniPlayer hides there (the ROOT navigation's
+   * onStateChange already reports the active route — no second navigation
+   * listener exists). Playback itself is untouched: only this floating
+   * view unmounts, and returning to Home/Search/Library restores it.
+   */
+  isSettingsActive?: boolean;
 };
 
 /**
@@ -22,14 +28,13 @@ type GlobalPlayerLayerProps = {
  * mount their own. Visibility is driven entirely by the global
  * playback state (hidden only when currentTrack is null).
  */
-export function GlobalPlayerLayer({ isNowPlayingActive }: GlobalPlayerLayerProps) {
+export function GlobalPlayerLayer({ isNowPlayingActive, isSettingsActive }: GlobalPlayerLayerProps) {
   const insets = useSafeAreaInsets();
-  const snapshot = useSyncExternalStore(
-    playerController.subscribe,
-    playerController.getSnapshot,
-  );
+  // Selected on currentTrack only: position ticks (~2x/s) never rebuild
+  // this layer — only a new selection (or its clearing) does.
+  const currentTrack = usePlayerSelector((snapshot) => snapshot.currentTrack);
 
-  if (!snapshot.currentTrack || isNowPlayingActive) {
+  if (!currentTrack || isNowPlayingActive || isSettingsActive === true) {
     return null;
   }
 

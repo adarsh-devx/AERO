@@ -1,10 +1,19 @@
-import React, { useRef, useSyncExternalStore } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRef } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { navigationRef } from '../../../navigation/navigationRef';
 import { playerController } from '../../../services/composition';
+import { shallowEqual, usePlayerSelector } from '../../../playback/usePlayerSelector';
 import { ArtworkPlaceholder } from './ArtworkPlaceholder';
-import { NextIcon, PauseIcon, PlayIcon } from './Icons';
+import { NextIcon, PauseIcon, PlayIcon, PrevIcon } from './Icons';
 import { LiquidGlassView } from '../../common/LiquidGlassView';
 
 type MiniPlayerProps = {
@@ -13,30 +22,43 @@ type MiniPlayerProps = {
 
 const MINI_ARTWORK = 44;
 
+/**
+ * Global MiniPlayer — a normal, static surface. Opening Now Playing happens
+ * only through the plain tap on the meta area (an explicit navigation
+ * action); there are no drag/transition gestures, no transition store and
+ * no animated open/close on this component.
+ */
 export function MiniPlayer({ onPress }: MiniPlayerProps) {
   const playScale = useRef(new Animated.Value(1)).current;
 
-  const openNowPlaying =
-    onPress ??
-    (() => {
-      if (navigationRef.isReady()) {
-        navigationRef.navigate('NowPlaying');
-      }
-    });
-  const snapshot = useSyncExternalStore(
-    playerController.subscribe,
-    playerController.getSnapshot,
+  const { currentTrack, status, hasNext, hasPrevious } = usePlayerSelector(
+    (snapshot) => ({
+      currentTrack: snapshot.currentTrack,
+      status: snapshot.status,
+      hasNext: snapshot.hasNext,
+      hasPrevious: snapshot.hasPrevious,
+    }),
+    shallowEqual,
   );
 
-  if (!snapshot.currentTrack) {
+  if (!currentTrack) {
     return null;
   }
 
-  const track = snapshot.currentTrack;
-  const isPlaying = snapshot.status === 'playing';
+  const track = currentTrack;
+  const isPlaying = status === 'playing';
+  const isLoading = status === 'loading';
+
+  const openNowPlaying = () => {
+    if (onPress) {
+      onPress();
+    } else if (navigationRef.isReady()) {
+      navigationRef.navigate('NowPlaying');
+    }
+  };
 
   const handleTogglePlay = (e: any) => {
-    e.stopPropagation?.();
+    e?.stopPropagation?.();
     Animated.sequence([
       Animated.timing(playScale, { toValue: 0.82, duration: 60, useNativeDriver: true }),
       Animated.spring(playScale, { toValue: 1.15, friction: 3, tension: 150, useNativeDriver: true }),
@@ -46,49 +68,94 @@ export function MiniPlayer({ onPress }: MiniPlayerProps) {
   };
 
   const handleNext = (e: any) => {
-    e.stopPropagation?.();
-    if (snapshot.hasNext) {
+    e?.stopPropagation?.();
+    if (hasNext) {
       void playerController.next();
     }
   };
 
+  const handlePrevious = (e: any) => {
+    e?.stopPropagation?.();
+    if (hasPrevious) {
+      void playerController.previous();
+    }
+  };
+
   return (
-    <Pressable
-      style={styles.container}
-      onPress={openNowPlaying}
-      accessibilityRole="button"
-      accessibilityLabel="Open Now Playing"
-    >
+    <View style={styles.container}>
       <LiquidGlassView
         shape="pill"
         intensity="ultra"
         style={styles.glassPill}
       >
         <View style={styles.contentRow}>
-          {/* Circular Cover Artwork */}
-          <ArtworkPlaceholder
-            track={track}
-            size={MINI_ARTWORK}
-            borderRadius={999}
-          />
-          <View style={styles.meta}>
-            <Text style={styles.title} numberOfLines={1}>
-              {track.title}
-            </Text>
-            <Text style={styles.artist} numberOfLines={1}>
-              {track.artist}
-            </Text>
-          </View>
+          {/* Tappable Area (Artwork + Title + Artist) */}
+          <Pressable
+            style={styles.metaContainer}
+            onPress={openNowPlaying}
+            accessibilityRole="button"
+            accessibilityLabel="Open Now Playing"
+          >
+            <ArtworkPlaceholder
+              track={track}
+              size={MINI_ARTWORK}
+              borderRadius={999}
+            />
+            <View style={styles.meta}>
+              <Text style={styles.title} numberOfLines={1}>
+                {track.title}
+              </Text>
+              <Text style={styles.artist} numberOfLines={1}>
+                {track.artist}
+              </Text>
+            </View>
+          </Pressable>
+
+          {/* Previous Button */}
+          <Pressable
+            style={styles.prevButton}
+            accessibilityRole="button"
+            accessibilityLabel="Previous track"
+            disabled={!hasPrevious}
+            onPress={handlePrevious}
+            hitSlop={8}
+          >
+            <PrevIcon
+              size={16}
+              color={hasPrevious ? '#ffffff' : 'rgba(255, 255, 255, 0.3)'}
+            />
+          </Pressable>
 
           {/* Glass Play / Pause Orb */}
           <Pressable
             onPress={handleTogglePlay}
             style={styles.orbButton}
+            disabled={isLoading}
             accessibilityRole="button"
-            accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+            accessibilityLabel={
+              isLoading
+                ? 'Loading selected track'
+                : status === 'error'
+                  ? 'Retry playback'
+                  : isPlaying
+                    ? 'Pause'
+                    : 'Play'
+            }
+            hitSlop={8}
           >
             <Animated.View style={[styles.orbGlass, { transform: [{ scale: playScale }] }]}>
-              {isPlaying ? <PauseIcon size={16} color="#ffffff" /> : <PlayIcon size={16} color="#ffffff" />}
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : status === 'error' ? (
+                // Same retry affordance as the Now Playing play orb: a tap
+                // re-runs the selection through PlayerController (never a
+                // direct engine call), so both surfaces retry identically.
+                <Ionicons name="refresh" size={15} color="#ffffff" />
+              ) : isPlaying ? (
+                <PauseIcon size={16} color="#ffffff" />
+              ) : (
+                <PlayIcon size={16} color="#ffffff" />
+              )}
             </Animated.View>
           </Pressable>
 
@@ -97,14 +164,15 @@ export function MiniPlayer({ onPress }: MiniPlayerProps) {
             style={styles.nextButton}
             accessibilityRole="button"
             accessibilityLabel="Next track"
-            disabled={!snapshot.hasNext}
+            disabled={!hasNext}
             onPress={handleNext}
+            hitSlop={8}
           >
-            <NextIcon size={16} color={snapshot.hasNext ? '#ffffff' : 'rgba(255, 255, 255, 0.3)'} />
+            <NextIcon size={16} color={hasNext ? '#ffffff' : 'rgba(255, 255, 255, 0.3)'} />
           </Pressable>
         </View>
       </LiquidGlassView>
-    </Pressable>
+    </View>
   );
 }
 
@@ -127,9 +195,15 @@ const styles = StyleSheet.create({
   contentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
     paddingHorizontal: 4,
     paddingVertical: 2,
+  },
+  metaContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   meta: {
     flex: 1,
@@ -167,6 +241,12 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   nextButton: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  prevButton: {
     width: 34,
     height: 34,
     alignItems: 'center',
