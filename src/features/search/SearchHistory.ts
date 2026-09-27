@@ -4,6 +4,17 @@ export const SEARCH_HISTORY_STORAGE_KEY = 'aero:search_history';
 export const SEARCH_HISTORY_LIMIT = 20;
 
 /**
+ * The exact settings surface consumed to gate recording — structurally
+ * satisfied by the app-level SettingsStore (wired in composition).
+ */
+export interface SearchHistorySettingsSource {
+  /** Resolves once persisted settings have been read (shared promise). */
+  hydrate(): Promise<void>;
+  /** Current recording preference; valid once hydrate() resolves. */
+  getSnapshot(): { readonly searchHistoryEnabled: boolean };
+}
+
+/**
  * Persistent Search History (newest first).
  *
  * Stores user-submitted queries in NativeKeyValueStore.
@@ -11,12 +22,14 @@ export const SEARCH_HISTORY_LIMIT = 20;
  */
 export class SearchHistory {
   private readonly store: KeyValueStore;
+  private readonly settings?: SearchHistorySettingsSource;
   private readonly listeners = new Set<() => void>();
   private queries: readonly string[] = [];
   private readyPromise: Promise<void> | null = null;
 
-  constructor(store: KeyValueStore) {
+  constructor(store: KeyValueStore, settings?: SearchHistorySettingsSource) {
     this.store = store;
+    this.settings = settings;
   }
 
   /** React external-store subscription. */
@@ -58,6 +71,12 @@ export class SearchHistory {
   }
 
   private async recordInternal(q: string): Promise<void> {
+    // Recording can be switched off in Settings: while off nothing new
+    // is persisted, and existing history is never touched (§7).
+    if (this.settings) {
+      await this.settings.hydrate();
+      if (!this.settings.getSnapshot().searchHistoryEnabled) return;
+    }
     await this.hydrate();
     const remaining = this.queries.filter(
       (item) => item.toLowerCase() !== q.toLowerCase(),
