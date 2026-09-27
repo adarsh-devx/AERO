@@ -71,8 +71,6 @@ class StreamResolutionModule : Module() {
 
     AsyncFunction("resolveStreamAsync") { videoId: String, promise: Promise ->
       CoroutineScope(Dispatchers.IO).launch {
-        val tStart = System.currentTimeMillis()
-        Log.i(TAG, "[Resolve] resolve_start videoId='$videoId'")
         try {
           ensureInitialized()
 
@@ -84,7 +82,6 @@ class StreamResolutionModule : Module() {
           }
 
           val videoUrl = "https://www.youtube.com/watch?v=$cleanVideoId"
-          Log.i(TAG, "[Resolve] YouTube URL: $videoUrl")
 
           val info = StreamInfo.getInfo(ServiceList.YouTube, videoUrl)
 
@@ -104,9 +101,6 @@ class StreamResolutionModule : Module() {
 
           // Phase 1 — retrieve the audio stream list from the extracted info.
           val audioStreams = info.audioStreams
-          audioStreams?.forEach { stream ->
-            Log.d(TAG, "[Resolve] candidate: delivery=${stream.deliveryMethod}, format=${stream.format?.name}, mime=${stream.format?.mimeType}, bitrate=${stream.averageBitrate}, urlEmpty=${stream.content.isNullOrEmpty()}")
-          }
 
           // Phase 2 — filter down to progressive-HTTP candidates.
           val progressiveStreams = progressiveCandidates(audioStreams)
@@ -131,7 +125,6 @@ class StreamResolutionModule : Module() {
           }
 
           val mimeType = bestAudio.format?.mimeType ?: "audio/mp4"
-          Log.i(TAG, "[Resolve] resolve_done elapsed=${System.currentTimeMillis() - tStart}ms")
 
           promise.resolve(
             mapOf(

@@ -1,6 +1,7 @@
 import type { Track } from '../../../core/types/track';
 import type { ResolvedStream } from '../types';
 import type { StreamSource } from './types';
+import { sanitizeStreamHost } from '../streamUtils';
 
 /**
  * DirectStreamSource: Resolves tracks that already contain a direct playable URL.
@@ -21,10 +22,18 @@ export class DirectStreamSource implements StreamSource {
     if (!this.canHandle(track)) {
       return null;
     }
+    const uri = track.id;
+    const isLocal = uri.startsWith('content://') || uri.startsWith('file://');
     return {
       trackId: track.id,
-      uri: track.id,
+      uri,
+      metadata: {
+        sourceType: isLocal ? 'local' : 'online',
+        sanitizedHost: sanitizeStreamHost(uri),
+        deliveryMethod: isLocal ? 'Local Media URI' : 'Direct Stream URL',
+      },
     };
   }
 }
+
 

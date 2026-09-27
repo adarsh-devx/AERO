@@ -3,6 +3,7 @@ import { NativeModuleUnavailableError } from '../../../core/errors';
 import { getStreamResolutionModule } from '../../../../modules/stream-resolution';
 import type { ResolvedStream } from '../types';
 import type { StreamSource } from './types';
+import { sanitizeStreamHost } from '../streamUtils';
 
 /**
  * NativeStreamSource: Resolves online YouTube tracks using the native Android
@@ -25,14 +26,13 @@ export class NativeStreamSource implements StreamSource {
       throw new NativeModuleUnavailableError('StreamResolution');
     }
 
-    console.log('[STREAM_RESOLVER] NativeStreamSource resolving track:', track.id, track.title);
     const result = await nativeModule.resolveStreamAsync(track.id);
 
     if (!result?.uri) {
       throw new Error(`Native stream resolution returned empty URI for track ${track.id}`);
     }
 
-    console.log('[STREAM_RESOLVER] NativeStreamSource resolved URI successfully (mimeType=' + result.mimeType + ')');
+    const sanitizedHost = sanitizeStreamHost(result.uri);
 
     return {
       trackId: track.id,
@@ -40,7 +40,16 @@ export class NativeStreamSource implements StreamSource {
       mimeType: result.mimeType,
       // Replay the extractor's User-Agent when fetching, or the CDN rejects it.
       headers: result.userAgent ? { 'User-Agent': result.userAgent } : undefined,
+      metadata: {
+        sourceType: 'online',
+        mimeType: result.mimeType,
+        format: result.format && result.format !== 'unknown' ? result.format.toUpperCase() : undefined,
+        bitrate: typeof result.bitrate === 'number' && result.bitrate > 0 ? result.bitrate : undefined,
+        sanitizedHost,
+        deliveryMethod: 'Progressive HTTP (NewPipe)',
+      },
     };
   }
 }
+
 

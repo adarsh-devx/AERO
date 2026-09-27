@@ -18,9 +18,15 @@ export class LocalFileStreamProvider {
         `Track "${track.id}" is not a local MediaStore track; only numeric MediaStore ids can be resolved locally.`,
       );
     }
+    const uri = `content://media/external/audio/media/${track.id}`;
     return {
       trackId: track.id,
-      uri: `content://media/external/audio/media/${track.id}`,
+      uri,
+      metadata: {
+        sourceType: 'local',
+        sanitizedHost: 'Android MediaStore',
+        deliveryMethod: 'Content Provider URI',
+      },
     };
   }
 }
@@ -28,3 +34,4 @@ export class LocalFileStreamProvider {
 // Type-conformance check without exporting a redundant alias.
 const _conformance: StreamProvider = new LocalFileStreamProvider();
 void _conformance;
+

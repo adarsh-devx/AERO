@@ -1,5 +1,5 @@
 import type { Track } from '../../core/types/track';
-import { trackIdentityKey } from '../../core/types/track';
+import { trackIdentityKey, trackOrigin } from '../../core/types/track';
 import type { ResolvedStream, StreamProvider, StreamResolver } from './types';
 
 /** How long a resolved URL is trusted before we re-resolve it (NØTE parity). */
@@ -28,6 +28,25 @@ type CacheEntry = {
   expiresAt: number;
 };
 
+export interface CompositeStreamResolverOptions {
+  /**
+   * Completed-download seam, wired once in the composition root.
+   *
+   * Checked FIRST — before the URL cache and before any provider — so
+   * playing an already-downloaded track resolves straight to its local
+   * file and never re-runs NewPipe (the resolved online URL may have
+   * expired, and must not be required). Returns null when the track has
+   * no completed download, falling through to normal resolution.
+   *
+   * The returned stream is deliberately NOT written into the URL cache:
+   * download storage and the (short-lived, in-memory) stream cache stay
+   * strictly separate concerns.
+   */
+  readonly downloadedStream?: (
+    track: Track,
+  ) => Promise<ResolvedStream | null> | ResolvedStream | null;
+}
+
 /**
  * CompositeStreamResolver: routes track stream resolution to the
  * appropriate StreamProvider (local vs online) based on track metadata.
@@ -43,11 +62,16 @@ type CacheEntry = {
  */
 export class CompositeStreamResolver implements StreamResolver {
   private readonly providers: ReadonlyMap<string, StreamProvider>;
+  private readonly options: CompositeStreamResolverOptions;
   private readonly cache = new Map<string, CacheEntry>();
   private readonly inflight = new Map<string, Promise<ResolvedStream>>();
 
-  constructor(providers: readonly StreamProvider[]) {
+  constructor(
+    providers: readonly StreamProvider[],
+    options: CompositeStreamResolverOptions = {},
+  ) {
     this.providers = new Map(providers.map((p) => [p.id, p]));
+    this.options = options;
   }
 
   /** Cached, unexpired stream for the track, if any. */
@@ -67,20 +91,19 @@ export class CompositeStreamResolver implements StreamResolver {
   }
 
   async resolve(track: Track): Promise<ResolvedStream> {
+    // Offline-first: a completed local download wins over everything,
+    // including a still-cached online URL (Task: downloaded playback must
+    // not depend on stream URL expiry or on network availability).
+    const downloaded = await this.options.downloadedStream?.(track);
+    if (downloaded) return downloaded;
+
     const cached = this.peek(track);
-    if (cached) {
-      console.log('[STREAM_RESOLVER] cache hit:', track.id, track.title);
-      return cached;
-    }
+    if (cached) return cached;
 
     const key = trackIdentityKey(track);
     const existing = this.inflight.get(key);
-    if (existing) {
-      console.log('[STREAM_RESOLVER] in-flight join:', track.id, track.title);
-      return existing;
-    }
+    if (existing) return existing;
 
-    console.log('[STREAM_RESOLVER] fresh resolve:', track.id, track.title);
     const promise = this.resolveUncached(track).finally(() => {
       this.inflight.delete(key);
     });
@@ -89,7 +112,7 @@ export class CompositeStreamResolver implements StreamResolver {
   }
 
   private async resolveUncached(track: Track): Promise<ResolvedStream> {
-    const origin = track.origin ?? (/^\d+$/.test(track.id) ? 'local' : 'online');
+    const origin = trackOrigin(track);
     const provider = this.providers.get(origin);
 
     if (!provider) {
