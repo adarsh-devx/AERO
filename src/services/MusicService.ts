@@ -1,7 +1,7 @@
-import type { Track } from '../core/types/track';
+import { isTrack, type Track } from '../core/types/track';
 import type { MusicProvider } from '../providers/music/types';
 import type { ResolvedStream, StreamResolver } from '../providers/stream/types';
-import type { PlaybackEngine } from '../playback/types';
+import type { PlaybackEngine, PlaybackRequest } from '../playback/types';
 
 export interface MusicServiceDependencies {
   /** Registered discovery providers (local, online, ...). At least one. */
@@ -106,7 +106,11 @@ export class MusicService {
     settled.forEach((outcome, index) => {
       const { provider } = attempts[index];
       if (outcome.status === 'fulfilled') {
-        tracks.push(...outcome.value);
+        // Merge-boundary validation: a structurally invalid entry (missing
+        // id/title/artist) never reaches a results list, a history write or
+        // playback. Reuses the SAME structural check the persisted stores
+        // use — one definition, no per-provider duplicate filtering.
+        tracks.push(...outcome.value.filter(isTrack));
       } else {
         errors.set(
           provider.id,
@@ -116,6 +120,86 @@ export class MusicService {
     });
 
     return { tracks, errors };
+  }
+
+  /**
+   * Search-bar suggestions merged from every provider that offers them.
+   *
+   * Providers without a suggestion source are skipped (the capability is
+   * optional), and a provider failure only removes that provider's
+   * suggestions — it never fails the call. Results are de-duplicated
+   * case-insensitively in provider order, so the first provider to offer a
+   * query string defines its position.
+   *
+   * Deliberately separate from search(): suggestions arrive on every pause in
+   * typing and must stay cheap, while search() is a deliberate user action.
+   */
+  async suggestions(query: string): Promise<string[]> {
+    const needle = query.trim();
+    if (needle.length === 0) return [];
+
+    const attempts: Promise<string[]>[] = [];
+    for (const provider of this.providers.values()) {
+      if (typeof provider.suggestions !== 'function') continue;
+      attempts.push(provider.suggestions(needle));
+    }
+    if (attempts.length === 0) return [];
+
+    const settled = await Promise.allSettled(attempts);
+    const suggestions: string[] = [];
+    const seen = new Set<string>();
+    for (const outcome of settled) {
+      if (outcome.status !== 'fulfilled') continue;
+      for (const suggestion of outcome.value) {
+        const key = suggestion.trim().toLowerCase();
+        if (key.length === 0 || seen.has(key)) continue;
+        seen.add(key);
+        suggestions.push(suggestion);
+      }
+    }
+    return suggestions;
+  }
+
+  /**
+   * Resolves ONE provider catalogue id into a single Track (shared-link /
+   * deep-link id lookup) — the id-space equivalent of search(), kept at
+   * this layer so the UI never talks to a concrete provider.
+   *
+   * Only providers implementing the optional getTrack capability are asked,
+   * in registration order; the first non-null identification wins. Answers:
+   *
+   *  - Track: identified (callers then use the normal playback flow);
+   *  - null: a provider was reached and could NOT identify the id —
+   *    "not found", never a guessed or unrelated item;
+   *  - throws: no capable provider exists, or every capable answer was a
+   *    provider/network failure — "could not load".
+   */
+  async getTrack(id: string): Promise<Track | null> {
+    const needle = id.trim();
+    if (needle.length === 0) return null;
+
+    const capable = [...this.providers.values()].filter(
+      (provider) => typeof provider.getTrack === 'function',
+    );
+    if (capable.length === 0) {
+      throw new Error('MusicService has no provider that can resolve a track by id.');
+    }
+
+    let definitiveNotFound = false;
+    let lastError: Error | null = null;
+    for (const provider of capable) {
+      try {
+        const track = await provider.getTrack!(needle);
+        if (track !== null) return track;
+        // A capable provider answered definitively: the id is unknown.
+        definitiveNotFound = true;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+      }
+    }
+
+    if (!definitiveNotFound && lastError !== null) throw lastError;
+    return null;
   }
 
   /**
@@ -135,20 +219,35 @@ export class MusicService {
       * Track → StreamResolver → ResolvedStream → PlaybackEngine.load+play.
    * The engine is source-blind; nothing here exposes where audio comes
    * from, and no provider ever touches the playback engine.
+   *
+   * `request` is the caller's cancellation token. Resolution cannot be aborted
+   * (the native extractor has no cancellation), so the guard sits at the one
+   * place where an obsolete request would do real damage: loading and starting
+   * audio. A request that was superseded while its stream was resolving returns
+   * WITHOUT touching the engine — the newer selection owns playback, and the
+   * wasted resolution has already populated the resolver's cache.
    */
-  async playTrack(track: Track): Promise<void> {
+  async playTrack(track: Track, request?: PlaybackRequest): Promise<void> {
     if (!this.playbackEngine) {
       throw new Error('MusicService has no playback engine registered.');
     }
-    console.log('[QUEUE] MusicService.playTrack', track.id, track.title);
     const stream = await this.resolveStream(track);
     // stream.uri is deliberately never logged: it is a signed googlevideo URL,
     // and building that string for a log is cost on the critical path.
-    console.log('[QUEUE] stream resolved', stream.trackId);
+    if (request?.isCancelled()) return;
     await this.playbackEngine.load(stream, track);
-    console.log('[QUEUE] engine.load done');
+    if (request?.isCancelled()) return;
+    // Session-restore resume: position lands strictly between load and play
+    // (loaded engine → seek → play), best-effort — a failed seek must never
+    // take playback down with it, starting from 0 is the honest fallback.
+    if (typeof request?.startAtMs === 'number' && request.startAtMs > 0) {
+      try {
+        await this.playbackEngine.seek(request.startAtMs);
+      } catch (error) {
+        console.warn('[QUEUE] could not apply restored position; starting from 0.', error);
+      }
+    }
     await this.playbackEngine.play();
-    console.log('[QUEUE] engine.play done');
   }
 
   /** Stop current playback (see PlaybackEngine.stop). */
@@ -160,7 +259,7 @@ export class MusicService {
   }
 
   /** Best-effort check that a resolve could even be attempted. */
-  canResolve(track: Track): boolean {
+  canResolve(_track: Track): boolean {
     return this.streamResolver !== null;
   }
 
