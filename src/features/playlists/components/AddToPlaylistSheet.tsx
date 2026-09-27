@@ -64,7 +64,7 @@ export function AddToPlaylistSheet({ visible, track, onClose }: AddToPlaylistShe
                       {playlist.tracks.length} {playlist.tracks.length === 1 ? 'song' : 'songs'}
                     </Text>
                   </View>
-                  {alreadyAdded && <Text style={styles.addedLabel}>Added</Text>}
+                  {alreadyAdded ? <Text style={styles.addedLabel}>Added</Text> : null}
                 </Pressable>
               );
             })}

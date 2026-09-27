@@ -119,6 +119,31 @@ export class Playlists {
     });
   }
 
+  /**
+   * Reorders a track within a playlist (move from one index to another).
+   * Out-of-bounds indices and same-position moves are no-ops; the rest of
+   * the playlist (identity, persistence, reactive notification) follows the
+   * exact same mutate/persist/replace path as every other edit.
+   */
+  moveTrack(playlistId: string, fromIndex: number, toIndex: number): void {
+    this.mutatePlaylist(playlistId, (playlist) => {
+      const { tracks } = playlist;
+      if (
+        fromIndex === toIndex ||
+        fromIndex < 0 ||
+        fromIndex >= tracks.length ||
+        toIndex < 0 ||
+        toIndex >= tracks.length
+      ) {
+        return null; // unchanged
+      }
+      const next = [...tracks];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return { ...playlist, tracks: next, updatedAt: Date.now() };
+    });
+  }
+
   /** Applies a change to one playlist; null from the mutator means no change. */
   private mutatePlaylist(
     id: string,
