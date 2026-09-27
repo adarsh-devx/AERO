@@ -1,17 +1,15 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useRef, useSyncExternalStore } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { navigationRef, type RootStackParamList } from '../../../navigation';
+import { navigationRef } from '../../../navigation/navigationRef';
 import { tabStore } from '../../../navigation/tabStore';
+import { downloads } from '../../../services/composition';
 import { HomeIcon, LibraryIcon, SearchIcon } from './Icons';
-import { homeColors } from '../theme';
 import { LiquidGlassView } from '../../common/LiquidGlassView';
 
 type BottomTabBarProps = {
   activeTab: 'home' | 'search' | 'library';
-  navigation: NativeStackNavigationProp<RootStackParamList>;
 };
 
 type TabDef = {
@@ -29,10 +27,13 @@ function TabItem({
   tab,
   isActive,
   onPress,
+  badge = false,
 }: {
   tab: TabDef;
   isActive: boolean;
   onPress: () => void;
+  /** Small dot over the Library icon while downloads are queued/active. */
+  badge?: boolean;
 }) {
   const pressScale = useRef(new Animated.Value(1)).current;
 
@@ -67,9 +68,12 @@ function TabItem({
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
       <Animated.View style={[styles.tabContent, { transform: [{ scale: pressScale }] }]}>
-        {tab.key === 'home' && <HomeIcon color={color} />}
-        {tab.key === 'search' && <SearchIcon color={color} />}
-        {tab.key === 'library' && <LibraryIcon color={color} />}
+        <View style={styles.iconWrap}>
+          {tab.key === 'home' ? <HomeIcon color={color} /> : null}
+          {tab.key === 'search' ? <SearchIcon color={color} /> : null}
+          {tab.key === 'library' ? <LibraryIcon color={color} /> : null}
+          {badge ? <View style={styles.badgeDot} /> : null}
+        </View>
         <Text style={[styles.label, { color, fontWeight: isActive ? '700' : '500' }]}>
           {tab.label}
         </Text>
@@ -81,8 +85,25 @@ function TabItem({
 /**
  * Floating Liquid Glass Bottom Navigation Island.
  */
-export function BottomTabBar({ activeTab, navigation }: BottomTabBarProps) {
+export function BottomTabBar({ activeTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+
+  // Global download indicator (§18): a small dot on the Library tab while
+  // anything is queued or transferring — read from the ONE downloads
+  // store's transient snapshot (no hydration needed: activity only exists
+  // within the session that created it). No new UI surface, no navigation
+  // change; details stay in Library → Downloads.
+  const activitySnapshot = useSyncExternalStore(
+    downloads.subscribe,
+    downloads.getActivitySnapshot,
+  );
+  const downloadsActive = useMemo(
+    () =>
+      Object.values(activitySnapshot).some(
+        (activity) => activity.status === 'downloading' || activity.status === 'queued',
+      ),
+    [activitySnapshot],
+  );
 
   return (
     <View
@@ -121,6 +142,7 @@ export function BottomTabBar({ activeTab, navigation }: BottomTabBarProps) {
                 tab={tab}
                 isActive={isActive}
                 onPress={handlePress}
+                badge={tab.key === 'library' && downloadsActive}
               />
             );
           })}
@@ -169,6 +191,21 @@ const styles = StyleSheet.create({
   tabContent: {
     alignItems: 'center',
     gap: 3,
+  },
+  iconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeDot: {
+    position: 'absolute',
+    top: -2,
+    right: -6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4cc9f0',
+    borderWidth: 1,
+    borderColor: 'rgba(10, 10, 11, 0.85)',
   },
   label: {
     fontSize: 11,
