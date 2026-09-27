@@ -1,0 +1,23 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group 'host.exp.exponent'
+version '1.0.0'
+
+android {
+  namespace "expo.modules.audioeffects"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // ExoPlayer / AnalyticsListener / C for the SharedRef<ExoPlayer> JS→Kotlin
+  // boundary and real audio-session tracking. Same 1.9.0 expo-audio already
+  // resolves (media3-common rides along as its compile-scope dependency), so
+  // the build stays offline-safe with no new versions introduced.
+  implementation 'androidx.media3:media3-exoplayer:1.9.0'
+}
