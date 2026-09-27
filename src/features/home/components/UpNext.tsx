@@ -2,66 +2,59 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Track } from '../../../core/types/track';
 import { ArtworkPlaceholder } from './ArtworkPlaceholder';
-import { NextIcon, PauseIcon, PlayIcon } from './Icons';
 import { homeColors, homeRadius, mutedText } from '../theme';
 
 const ROW_ARTWORK = 48;
+/** Max upcoming rows previewed on Home; the full queue lives in Now Playing. */
+const UP_NEXT_PREVIEW_COUNT = 6;
 
 type UpNextProps = {
-  track: Track;
-  /** Whether the demo row shows a paused (play) or active (pause) state. */
-  isPlaying: boolean;
-  onTogglePlay: () => void;
+  /** Upcoming queue tracks in the CURRENT playback order (after the playing track). */
+  tracks: readonly Track[];
+  /** Called with the index within `tracks` when a row is tapped. */
+  onSelectTrack: (index: number) => void;
 };
 
 /**
- * Section header ("Up next for you" + subtle See all) and a single
- * compact upcoming-track row with play/pause and next actions.
+ * Home "Up next for you" preview of the real PlayerController queue.
+ *
+ * The tracks are derived from the player snapshot's queue (already the
+ * effective, shuffle-aware playback order) — this section never owns a
+ * queue of its own, so next/previous/shuffle/queue changes show up here
+ * immediately. Tapping a row jumps to that queue position through the
+ * existing `playAt` queue logic. Renders nothing when no queue is active.
  */
-export function UpNext({ track, isPlaying, onTogglePlay }: UpNextProps) {
+export function UpNext({ tracks, onSelectTrack }: UpNextProps) {
+  if (tracks.length === 0) return null;
+
+  const displayedTracks = tracks.slice(0, UP_NEXT_PREVIEW_COUNT);
+
   return (
     <View>
       <View style={styles.headerRow}>
         <Text style={styles.heading}>Up next for you</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="See all upcoming"
-          onPress={() => {
-            /* Queue list is a future feature (PRD §10) — placeholder. */
-          }}
-        >
-          <Text style={styles.seeAll}>See all</Text>
-        </Pressable>
       </View>
 
-      <View style={styles.row}>
-        <ArtworkPlaceholder track={track} size={ROW_ARTWORK} />
-        <View style={styles.meta}>
-          <Text style={mutedText.title} numberOfLines={1}>
-            {track.title}
-          </Text>
-          <Text style={mutedText.subtitle} numberOfLines={1}>
-            {track.artist}
-          </Text>
-        </View>
-        <Pressable
-          style={styles.control}
-          onPress={onTogglePlay}
-          accessibilityRole="button"
-          accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-        >
-          {isPlaying ? <PauseIcon size={12} /> : <PlayIcon size={12} />}
-        </Pressable>
-        <Pressable
-          style={styles.control}
-          accessibilityRole="button"
-          accessibilityLabel="Next track"
-          onPress={() => {
-            /* Queue advancement arrives with the playback engine. */
-          }}
-        >
-          <NextIcon size={12} />
-        </Pressable>
+      <View style={styles.list}>
+        {displayedTracks.map((track, index) => (
+          <Pressable
+            key={`${track.origin ?? 'unknown'}:${track.id}:${index}`}
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            onPress={() => onSelectTrack(index)}
+            accessibilityRole="button"
+            accessibilityLabel={`Play ${track.title} by ${track.artist} from Up Next`}
+          >
+            <ArtworkPlaceholder track={track} size={ROW_ARTWORK} />
+            <View style={styles.meta}>
+              <Text style={mutedText.title} numberOfLines={1}>
+                {track.title}
+              </Text>
+              <Text style={mutedText.subtitle} numberOfLines={1}>
+                {track.artist}
+              </Text>
+            </View>
+          </Pressable>
+        ))}
       </View>
     </View>
   );
@@ -79,10 +72,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: homeColors.text,
   },
-  seeAll: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: homeColors.textMuted,
+  list: {
+    gap: 8,
   },
   row: {
     flexDirection: 'row',
@@ -95,15 +86,11 @@ const styles = StyleSheet.create({
     borderColor: homeColors.border,
     backgroundColor: homeColors.surface,
   },
+  rowPressed: {
+    opacity: 0.6,
+  },
   meta: {
     flex: 1,
     gap: 2,
-  },
-  control: {
-    width: 36,
-    height: 36,
-    borderRadius: homeRadius.avatar,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

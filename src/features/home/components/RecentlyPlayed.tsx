@@ -52,7 +52,7 @@ export function RecentlyPlayed({ tracks, maxItems = 6, onSelect }: RecentlyPlaye
 
         if (!onSelect) {
           return (
-            <View key={track.id} style={styles.item}>
+            <View key={`${track.origin ?? 'unknown'}:${track.id}`} style={styles.item}>
               {content}
             </View>
           );
@@ -60,7 +60,7 @@ export function RecentlyPlayed({ tracks, maxItems = 6, onSelect }: RecentlyPlaye
 
         return (
           <Pressable
-            key={track.id}
+            key={`${track.origin ?? 'unknown'}:${track.id}`}
             style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
             onPress={() => onSelect(track, index)}
             accessibilityRole="button"

@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { homeColors } from '../theme';
 import { TactilePressable } from '../../common/TactilePressable';
 import { LiquidGlassView } from '../../common/LiquidGlassView';
 
@@ -17,18 +15,19 @@ const CATEGORIES = [
 ];
 
 type CategoryChipsProps = {
+  /** Controlled selection so Home's feed state and the chip UI can never drift
+   *  (pull-to-refresh refreshes exactly what is selected). */
+  selectedCategory: string | null;
+  /** `null` clears the filter and returns Home to its default feed. */
   onSelectCategory?: (category: string | null) => void;
 };
 
 /**
  * YouTube Music horizontal scrolling mood / category filter chips with Liquid Glass aesthetics.
  */
-export function CategoryChips({ onSelectCategory }: CategoryChipsProps) {
-  const [selected, setSelected] = useState<string | null>(null);
-
+export function CategoryChips({ selectedCategory, onSelectCategory }: CategoryChipsProps) {
   const handlePress = (category: string) => {
-    const next = selected === category ? null : category;
-    setSelected(next);
+    const next = selectedCategory === category ? null : category;
     if (onSelectCategory) {
       onSelectCategory(next);
     }
@@ -42,7 +41,7 @@ export function CategoryChips({ onSelectCategory }: CategoryChipsProps) {
         contentContainerStyle={styles.scrollContent}
       >
         {CATEGORIES.map((category) => {
-          const isSelected = selected === category;
+          const isSelected = selectedCategory === category;
           return (
             <TactilePressable
               key={category}

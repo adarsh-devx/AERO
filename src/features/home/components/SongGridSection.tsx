@@ -1,8 +1,9 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { Track } from '../../../core/types/track';
 import { ArtworkPlaceholder } from './ArtworkPlaceholder';
+import { TactilePressable } from '../../common/TactilePressable';
 import { homeColors, homeRadius } from '../theme';
 
 type SongGridSectionProps = {
@@ -18,8 +19,6 @@ type SongGridSectionProps = {
  *
  * Used for Quick picks, Covers and remixes, Heard in Shorts, Trending songs.
  */
-import { TactilePressable } from '../../common/TactilePressable';
-
 export function SongGridSection({
   title,
   tracks,

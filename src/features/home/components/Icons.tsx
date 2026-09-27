@@ -1,4 +1,3 @@
-import { StyleSheet, View } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 
 import { homeColors } from '../theme';
