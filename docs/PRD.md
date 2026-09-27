@@ -1080,7 +1080,7 @@ Explicitly **not scheduled** and **not promised**. Listed so that the architectu
 | F-03 | Offline downloads / caching for later playback | Must only apply to sources whose terms permit it; interacts with RSK-05/RSK-07 |
 | F-04 | Lyrics | Licensing of lyrics; provider or third-party source TBD |
 | F-05 | Equalizer, audio effects, crossfade, gapless | Device-side; independent of providers — a "safe" feature family |
-| F-06 | Sleep timer, playback speed | Device-side; low risk |
+| F-06 | Sleep timer | Device-side; low risk |
 | F-07 | Widgets, home-screen shortcuts, quick settings tile | Android surface expansion |
 | F-08 | Android Auto, Wear OS, Android TV, Cast | Platform expansion (P8) |
 | F-09 | Recommendations / "for you" content | Requires provider capability we do not have; not decidable now |

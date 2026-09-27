@@ -29,7 +29,10 @@
   - Composite multi-source stream resolver.
 - 🔍 **YouTube Music Style Search**:
   - Real-time online search aggregation.
+  - Debounced search suggestions (autocomplete) from the YouTube Music InnerTube API.
   - Persistent query history and horizontal recent thumbnail rail.
+  - **No API key required**: search, suggestions and metadata all come from YouTube's
+    InnerTube JSON API, while audio is resolved on-device by the NewPipe extractor.
 - 📚 **Full Library & Offline Downloads**:
   - Custom playlists management.
   - Pinned liked songs auto-sync.
