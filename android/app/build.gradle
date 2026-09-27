@@ -97,6 +97,29 @@ android {
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
+    // ---------------------------------------------------------------------
+    // Production release signing - CONFIGURATION PATTERN ONLY.
+    // Adapted from Meld/Metrolist (app/build.gradle.kts signingConfigs.release):
+    // every credential comes from environment variables (CI secrets or a
+    // developer shell) and NOTHING signable is committed to source control.
+    // The keystore file itself is restored from a base64 secret by
+    // .github/workflows/build-release.yml before the build runs.
+    //
+    // When AERO_RELEASE_KEYSTORE_PATH is unset/empty (local builds, forks,
+    // CI without secrets) release keeps signing with the debug keystore -
+    // exactly the pre-existing behaviour - so the configuration always
+    // resolves without any secrets present.
+    //
+    // MANUAL RELEASE STEP (once, by a maintainer, never committed here):
+    //   keytool -genkeypair -v -keystore release.keystore -alias aero \
+    //           -keyalg RSA -keysize 2048 -validity 10000
+    //   base64 -w0 release.keystore  -> GitHub secret AERO_RELEASE_KEYSTORE_BASE64
+    //   plus GitHub secrets: AERO_RELEASE_KEYSTORE_PASSWORD,
+    //                        AERO_RELEASE_KEY_ALIAS, AERO_RELEASE_KEY_PASSWORD
+    // ---------------------------------------------------------------------
+    def releaseKeystorePath = System.getenv('AERO_RELEASE_KEYSTORE_PATH')
+    def releaseSigningConfigured = releaseKeystorePath != null && !releaseKeystorePath.trim().isEmpty()
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -104,15 +127,30 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (releaseSigningConfigured) {
+            release {
+                // Absolute path (CI) or app-module-relative path (developer shell).
+                storeFile file(releaseKeystorePath.trim())
+                storePassword System.getenv('AERO_RELEASE_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('AERO_RELEASE_KEY_ALIAS')
+                keyPassword System.getenv('AERO_RELEASE_KEY_PASSWORD')
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (releaseSigningConfigured) {
+                // Production signing (see block above) - credentials are env-only.
+                signingConfig signingConfigs.release
+            } else {
+                // Pre-existing behaviour: release signed with the debug keystore.
+                // Kept as the fallback so builds without secrets never fail.
+                // see https://reactnative.dev/docs/signed-apk-android.
+                signingConfig signingConfigs.debug
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds

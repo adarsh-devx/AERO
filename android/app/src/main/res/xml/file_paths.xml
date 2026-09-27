@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Paths exposed by Aero's FileProvider. Deliberately narrow: ONLY the
+     private in-app update directory (filesDir/aero/updates), so a
+     content:// grant can never reach music downloads, playlists or any
+     other app-private file. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="aero_updates" path="aero/updates/" />
+</paths>

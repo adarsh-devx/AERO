@@ -3,12 +3,20 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
+  <!-- In-app updates: Android O+ requires this before an app may hand an
+       APK to the package installer (ACTION_VIEW install flow). It only
+       enables the SYSTEM confirmation dialog - Aero never installs
+       silently and never bypasses the user's confirmation. -->
+  <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
   <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
   <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+  <!-- VIBRATE kept (harmless, normal-level; some library paths may use it).
+       SYSTEM_ALERT_WINDOW deliberately NOT requested: nothing in Aero draws
+       over other apps, and the debug-only dev-menu overlay declares its own
+       permission in the debug manifests. -->
   <uses-permission android:name="android.permission.VIBRATE"/>
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
   <queries>
@@ -23,6 +31,9 @@
     <meta-data android:name="expo.modules.updates.ENABLE_BSDIFF_PATCH_SUPPORT" android:value="true"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
+    <!-- expo-audio's own lock-screen service. Kept (its config plugin
+         regenerates the entry) but never started on Android anymore:
+         Aero drives its media notification through MediaPlaybackService. -->
     <service
       android:name="expo.modules.audio.service.AudioControlsService"
       android:exported="false"
@@ -32,11 +43,116 @@
         <action android:name="androidx.media3.session.MediaSessionService"/>
       </intent-filter>
     </service>
+    <!-- Aero's media notification / lock-screen service. stopWithTask=false
+         so swiping the app away never stops background playback or removes
+         the media notification — the audio path (expo-audio) is untouched. -->
+    <service
+      android:name="expo.modules.mediacontrols.MediaPlaybackService"
+      android:exported="false"
+      android:foregroundServiceType="mediaPlayback"
+      android:stopWithTask="false"/>
     <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|smallestScreenSize|assetsPaths" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="portrait">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
+      <!-- Android Share Sheet: accept shared plain text (ACTION_SEND) so a
+           YouTube / YouTube Music video or an Instagram Reel link shared
+           from another app opens in Aero. text/plain only; parsing +
+           validation happen in JS; no change to launch or
+           background-playback behavior. -->
+      <intent-filter>
+        <action android:name="android.intent.action.SEND"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <data android:mimeType="text/plain"/>
+      </intent-filter>
+      <!-- Deep links (ACTION_VIEW): open a SUPPORTED YouTube video URL
+           directly in Aero. Constrained to exactly the URL forms the shared
+           JS parser accepts — this is not a catch-all web handler, and the
+           parser still re-validates everything before any provider is asked.
+           Deliberately UNVERIFIED (no android:autoVerify): verified App
+           Links require Digital Asset Links (assetlinks.json) hosted on
+           YouTube's own domains, which this app does not control — without
+           that, Android shows an app chooser instead of opening silently.
+           NOTE: within one filter, Android treats scheme/host/path values as
+           matching SETS (schemes x hosts x paths), so path constraints here
+           apply to every host listed in this filter. -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <!-- youtu.be short links: every path is one video id (validated in JS). -->
+        <data android:scheme="http" android:host="youtu.be"/>
+        <data android:scheme="https" android:host="youtu.be"/>
+        <data android:scheme="http" android:host="www.youtu.be"/>
+        <data android:scheme="https" android:host="www.youtu.be"/>
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <!-- YouTube / YouTube Music: only video-bearing paths
+             (/watch, /shorts/, /live/, /embed/); channel, playlist, home and
+             every other path on these hosts is deliberately NOT claimed. -->
+        <data android:scheme="http"/>
+        <data android:scheme="https"/>
+        <data android:host="youtube.com" android:path="/watch"/>
+        <data android:host="www.youtube.com" android:path="/watch"/>
+        <data android:host="m.youtube.com" android:path="/watch"/>
+        <data android:host="music.youtube.com" android:path="/watch"/>
+        <data android:host="youtube.com" android:pathPrefix="/shorts/"/>
+        <data android:host="www.youtube.com" android:pathPrefix="/shorts/"/>
+        <data android:host="m.youtube.com" android:pathPrefix="/shorts/"/>
+        <data android:host="music.youtube.com" android:pathPrefix="/shorts/"/>
+        <data android:host="youtube.com" android:pathPrefix="/live/"/>
+        <data android:host="www.youtube.com" android:pathPrefix="/live/"/>
+        <data android:host="m.youtube.com" android:pathPrefix="/live/"/>
+        <data android:host="music.youtube.com" android:pathPrefix="/live/"/>
+        <data android:host="youtube.com" android:pathPrefix="/embed/"/>
+        <data android:host="www.youtube.com" android:pathPrefix="/embed/"/>
+        <data android:host="m.youtube.com" android:pathPrefix="/embed/"/>
+        <data android:host="music.youtube.com" android:pathPrefix="/embed/"/>
+      </intent-filter>
+      <!-- Instagram Reel deep links (ACTION_VIEW): ONLY the two public Reel
+           path forms (/reel/, /reels/) on Instagram's canonical hosts —
+           profile, explore, direct, settings and every other path on these
+           hosts are deliberately NOT claimed, and this is never a generic
+           instagram.com handler. Aero uses such a URL only to IDENTIFY the
+           song behind the Reel (public page metadata + the existing music
+           providers); Reel media itself is never fetched or played. Same
+           rationale as the YouTube filters: deliberately UNVERIFIED (no
+           android:autoVerify) — verified App Links require Digital Asset
+           Links (assetlinks.json) hosted on Instagram's own domains, which
+           this app does not control. Within one filter Android treats
+           scheme/host/path as matching SETS (as above), so this matches
+           {http,https} x {instagram.com, www, m} x {/reel/, /reels/}. -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="http"/>
+        <data android:scheme="https"/>
+        <data android:host="instagram.com" android:pathPrefix="/reel/"/>
+        <data android:host="instagram.com" android:pathPrefix="/reels/"/>
+        <data android:host="www.instagram.com" android:pathPrefix="/reel/"/>
+        <data android:host="www.instagram.com" android:pathPrefix="/reels/"/>
+        <data android:host="m.instagram.com" android:pathPrefix="/reel/"/>
+        <data android:host="m.instagram.com" android:pathPrefix="/reels/"/>
+      </intent-filter>
     </activity>
+    <!-- In-app updates: the downloaded update APK is exposed to Android's
+         package installer ONLY through a content:// URI from this
+         FileProvider (never an unsafe file:// URI). Only the private
+         update directory (filesDir/aero/updates) is shared, and only with
+         the intent that is granted per-launch read permission. -->
+    <provider
+      android:name="androidx.core.content.FileProvider"
+      android:authorities="${applicationId}.fileprovider"
+      android:exported="false"
+      android:grantUriPermissions="true">
+      <meta-data
+        android:name="android.support.FILE_PROVIDER_PATHS"
+        android:resource="@xml/file_paths" />
+    </provider>
   </application>
 </manifest>
