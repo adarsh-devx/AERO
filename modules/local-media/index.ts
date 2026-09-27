@@ -14,6 +14,25 @@ export interface NativeAudioEntry {
   album: string | null;
   /** Milliseconds; always > 0 (filtered natively). */
   durationMs: number;
+  /**
+   * Stable MediaStore ALBUM_ID as a string, or null when MediaStore has
+   * no album for the entry. Used for album grouping above display titles.
+   */
+  albumId: string | null;
+  /**
+   * Track position within its disc, decoded natively from MediaStore's
+   * TRACK column, or null when the tags carry none. Never a row index.
+   */
+  trackNumber: number | null;
+  /**
+   * Disc number, present ONLY when MediaStore's TRACK encodes one
+   * (disc * 1000 + track); null for plain single-disc entries.
+   */
+  discNumber: number | null;
+  /** Release year from the file's tags (MediaStore YEAR), or null. */
+  year: number | null;
+  /** Composer credit from the file's tags, or null when absent. */
+  composer: string | null;
 }
 
 interface LocalMediaNativeModule {

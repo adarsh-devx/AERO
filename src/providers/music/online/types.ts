@@ -2,12 +2,15 @@ import type { MusicProvider } from '../types';
 
 /**
  * Contract for an ONLINE (remote catalogue) music provider.
- * INTERFACE ONLY — deliberately unimplemented.
  *
- * The concrete provider (YouTube-family, other catalogue services) is
- * an undecided product/policy decision (docs/PROVIDERS.md §13). No
- * implementation, API calls, or extraction may be added here until
- * that decision and its distribution implications are recorded.
+ * Implemented by `YouTubeMusicProvider` (InnerTube discovery: search +
+ * suggestions). The rest of the application never imports that class — it goes
+ * through MusicService — so a different catalogue can be dropped in here later
+ * without touching the UI or the playback pipeline.
+ *
+ * This boundary is discovery ONLY: an OnlineMusicProvider produces Tracks, never
+ * audio. Stream resolution stays behind the stream layer
+ * (`providers/stream/*`, native NewPipe extractor).
  */
 export interface OnlineMusicProvider extends MusicProvider {
   readonly id: 'online';

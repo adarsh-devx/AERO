@@ -38,6 +38,17 @@ internal object LocalMediaQueries {
       MediaStore.Audio.Media.ARTIST,
       MediaStore.Audio.Media.ALBUM,
       MediaStore.Audio.Media.DURATION,
+      // Stable identity for album grouping above the display title: two
+      // different albums can share a name, ALBUM_ID cannot. Long is
+      // stringified at the boundary (same reason as _ID above).
+      MediaStore.Audio.Media.ALBUM_ID,
+      // Real tag metadata MediaStore already carries: track/disc position
+      // (TRACK), release year (YEAR) and composer credit (COMPOSER). All
+      // standard columns since API 1; read leniently below so a vendor ROM
+      // missing one degrades to "unknown", never to a failed library scan.
+      MediaStore.Audio.Media.TRACK,
+      MediaStore.Audio.Media.YEAR,
+      MediaStore.Audio.Media.COMPOSER,
     )
 
     // Base filters valid on every supported API level.
@@ -67,9 +78,37 @@ internal object LocalMediaQueries {
       val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
       val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
       val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+      val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+      // Lenient for the enrichment columns: -1 (column absent on this ROM)
+      // simply means "no value known", exactly like a 0/NULL cell.
+      val trackColumn = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK)
+      val yearColumn = cursor.getColumnIndex(MediaStore.Audio.Media.YEAR)
+      val composerColumn = cursor.getColumnIndex(MediaStore.Audio.Media.COMPOSER)
 
       while (cursor.moveToNext()) {
         val id = cursor.getLong(idColumn)
+
+        // MediaStore TRACK: a plain track number, or — when the source
+        // encoded disc info — disc * 1000 + track (the column's documented
+        // packing convention). Decoded HERE so no MediaStore quirk ever
+        // crosses the native boundary. Ambiguous plain values (< 1000) are
+        // passed through verbatim as the track number; a disc number is
+        // reported ONLY when the packing proves one.
+        val rawTrack = if (trackColumn >= 0) cursor.getInt(trackColumn) else 0
+        val trackNumber: Int? = when {
+          rawTrack <= 0 -> null
+          rawTrack >= 1000 -> (rawTrack % 1000).takeIf { it > 0 }
+          else -> rawTrack
+        }
+        val discNumber: Int? =
+          if (rawTrack >= 1000) (rawTrack / 1000).takeIf { it > 0 } else null
+        // YEAR is the file's release-year tag (0/absent = unknown, dropped).
+        val releaseYear =
+          if (yearColumn >= 0) cursor.getInt(yearColumn).takeIf { it in 1000..9999 } else null
+        val composer =
+          if (composerColumn >= 0) cursor.getString(composerColumn)?.takeIf {
+            it != MediaStore.UNKNOWN_STRING && it.isNotBlank()
+          } else null
 
         tracks.add(
           mapOf(
@@ -80,6 +119,13 @@ internal object LocalMediaQueries {
             "artist" to cursor.getString(artistColumn)?.takeIf { it != MediaStore.UNKNOWN_STRING },
             "album" to cursor.getString(albumColumn)?.takeIf { it != MediaStore.UNKNOWN_STRING },
             "durationMs" to cursor.getLong(durationColumn),
+            // 0 means MediaStore has no album for this entry; surfaced as
+            // "absent" rather than a fake id so grouping falls back cleanly.
+            "albumId" to cursor.getLong(albumIdColumn).takeIf { it > 0 }?.toString(),
+            "trackNumber" to trackNumber,
+            "discNumber" to discNumber,
+            "year" to releaseYear,
+            "composer" to composer,
           ),
         )
       }

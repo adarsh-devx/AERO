@@ -1,4 +1,8 @@
-import type { Track } from '../../../core/types/track';
+import type { Track, TrackCredit } from '../../../core/types/track';
+import {
+  normalizeMetadataText,
+  normalizeReleaseDate,
+} from '../../../core/types/track';
 import { NativeModuleUnavailableError, PermissionDeniedError } from '../../../core/errors';
 import { localAudioSource, type LocalAudioSource } from '../../../native/localMedia';
 import type { LocalMusicProvider } from './types';
@@ -24,8 +28,6 @@ export class DeviceMusicProvider implements LocalMusicProvider {
     const entries = await this.loadEntries();
     const needle = query.trim().toLowerCase();
 
-    console.log('[SEARCH] provider=local query=', query, 'entries count=', entries.length);
-
     const matched = needle.length === 0
       ? entries
       : entries.filter((entry) => {
@@ -33,19 +35,30 @@ export class DeviceMusicProvider implements LocalMusicProvider {
           return haystacks.some((field) => field?.toLowerCase().includes(needle));
         });
 
-    // Count only. Serialising every matched title with JSON.stringify was a
-    // synchronous, library-sized allocation on this promise's resolve path,
-    // i.e. work the caller was waiting on before it could see any results.
-    console.log('[SEARCH] provider=local matched count=', matched.length);
-
-    return matched.map((entry) => ({
-      id: entry.trackId,
-      title: entry.title,
-      artist: entry.artist ?? 'Unknown artist',
-      album: entry.album ?? undefined,
-      durationMs: entry.durationMs,
-      origin: 'local' as const,
-    }));
+    return matched.map((entry) => {
+      // Enriched tag metadata: each field is included ONLY when genuinely
+      // present — an unknown year/composer/track stays an absent field,
+      // never a placeholder. Display-only: playback identity still comes
+      // from origin + id alone.
+      const composer = normalizeMetadataText(entry.composer);
+      const credits: TrackCredit[] | undefined = composer
+        ? [{ role: 'composer', name: composer }]
+        : undefined;
+      const releaseDate = normalizeReleaseDate(entry.year);
+      return {
+        id: entry.trackId,
+        title: entry.title,
+        artist: entry.artist ?? 'Unknown artist',
+        album: entry.album ?? undefined,
+        albumId: entry.albumId ?? undefined,
+        durationMs: entry.durationMs,
+        origin: 'local' as const,
+        ...(entry.trackNumber !== null ? { trackNumber: entry.trackNumber } : {}),
+        ...(entry.discNumber !== null ? { discNumber: entry.discNumber } : {}),
+        ...(releaseDate !== undefined ? { releaseDate } : {}),
+        ...(credits ? { credits } : {}),
+      };
+    });
   }
 
   private async loadEntries() {
