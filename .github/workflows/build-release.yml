@@ -68,7 +68,7 @@ jobs:
       # the update checker would loop forever ("newer release" on every
       # launch). Tag builds stamp both from the vX.Y.Z tag with verification
       # (a failed stamp must fail the build, never ship silently); branch
-      # builds keep the repository defaults (1.0.0 / 1).
+      # builds keep the repository defaults.
       - name: 🏷️ Stamp App Version from Tag
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
@@ -79,15 +79,16 @@ jobs:
             fi
             IFS='.' read -r MAJOR MINOR PATCH <<< "$VER"
             CODE=$(( MAJOR * 1000000 + MINOR * 1000 + PATCH ))
-            sed -i -E "s/^([[:space:]]*)versionCode 1$/\1versionCode $CODE/" android/app/build.gradle
-            sed -i -E "s/^([[:space:]]*)versionName \"1\.0\.0\"$/\1versionName \"$VER\"/" android/app/build.gradle
+            sed -i -E "s/^([[:space:]]*versionCode)[[:space:]]+[0-9]+$/\1 $CODE/" android/app/build.gradle
+            sed -i -E "s/^([[:space:]]*versionName)[[:space:]]+\"[^\"]+\"$/\1 \"$VER\"/" android/app/build.gradle
             grep -qE "^[[:space:]]*versionCode $CODE\$" android/app/build.gradle || { echo "::error::versionCode stamp failed"; exit 1; }
             grep -qF "versionName \"$VER\"" android/app/build.gradle || { echo "::error::versionName stamp failed"; exit 1; }
             echo "AERO_VERSION=$VER" >> "$GITHUB_ENV"
             echo "Stamped versionName=$VER versionCode=$CODE"
           else
-            echo "AERO_VERSION=1.0.0" >> "$GITHUB_ENV"
-            echo "Branch build - keeping repository defaults (1.0.0 / 1)."
+            REPO_VER=$(grep -E '^[[:space:]]*versionName[[:space:]]+"[^"]+"' android/app/build.gradle | sed -E 's/.*"([^"]+)".*/\1/' || echo "1.0.1")
+            echo "AERO_VERSION=${REPO_VER:-1.0.1}" >> "$GITHUB_ENV"
+            echo "Branch build - keeping repository defaults ($REPO_VER)."
           fi
 
       - name: 🚀 Build Standalone Release APK
