@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Animated, Pressable, PressableProps, StyleProp, StyleSheet, ViewStyle } from 'react-native';
+import { Animated, Pressable, PressableProps, StyleProp, ViewStyle } from 'react-native';
 import { LiquidGlassShape, LiquidGlassView } from './LiquidGlassView';
 
 export interface LiquidGlassButtonProps extends Omit<PressableProps, 'style'> {
