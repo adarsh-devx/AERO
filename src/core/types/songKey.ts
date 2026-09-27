@@ -35,15 +35,26 @@ import type { Track } from './track';
 /** Presentation/alternate-version phrase suffixes — see module doc. */
 const VERSION_SUFFIX_PHRASES: readonly string[] = [
   'official music video',
+  'official video song',
   'official video',
   'official audio',
   'lyric video',
   'lyrics video',
   'music video',
+  'video song',
+  'audio song',
+  'watch video',
+  'full video song',
+  'full audio song',
+  'full video',
+  'full audio',
+  'full song',
   'sped up',
   'slowed down',
   'slowed reverb',
+  'slowed and reverb',
   'with lyrics',
+  '8d audio',
 ];
 
 const VERSION_SUFFIX_WORDS = new Set([
@@ -60,6 +71,16 @@ const VERSION_SUFFIX_WORDS = new Set([
   '1080p',
   'hq',
   'mv',
+  'song',
+  'songs',
+  'track',
+  'watch',
+  'status',
+  'ringtone',
+  'bgm',
+  'ost',
+  'ver',
+  'version',
   // Alternate-recording suffixes: folded into the same song key so one
   // song = one candidate; the canonical upload then wins on count (see
   // alternateVersionCount) — never a hardcoded channel allowlist.
@@ -78,19 +99,22 @@ const VERSION_SUFFIX_WORDS = new Set([
   'unplugged',
   'mashup',
   'edit',
+  'lofi',
+  'lo-fi',
 ]);
 
 function stripVersionSuffix(folded: string): string {
-  let words = folded.split(' ');
+  let words = folded.split(' ').filter(Boolean);
   let changed = true;
   while (changed && words.length > 1) {
     changed = false;
     const tail = words.join(' ');
     for (const phrase of VERSION_SUFFIX_PHRASES) {
       if (
-        tail.length > phrase.length + 1 &&
-        tail.endsWith(phrase) &&
-        tail[tail.length - phrase.length - 1] === ' '
+        tail === phrase ||
+        (tail.length > phrase.length + 1 &&
+          tail.endsWith(phrase) &&
+          tail[tail.length - phrase.length - 1] === ' ')
       ) {
         words = words.slice(0, words.length - phrase.split(' ').length);
         changed = true;
@@ -107,32 +131,79 @@ function stripVersionSuffix(folded: string): string {
 }
 
 /**
- * Case/whitespace/punctuation-insensitive fold for recommendation-level
- * identity comparisons (song keys, artist diversity caps, section
- * merging). Metadata equality with decoration removed, nothing looser:
- * NFKC covers NFC equivalence, bracketed suffixes are dropped, then
- * trailing version markers are stripped so alternate uploads of one song
- * fold together. Never used as playback identity.
+ * Extracts canonical title by stripping YouTube descriptors, multi-segment
+ * pipe/dash tags (movie names, actor credits, channel names), brackets, and suffixes.
  */
-export function fold(text: string): string {
-  const normalized = text
-    .normalize('NFKC')
+export function extractCanonicalTitle(rawTitle: string): string {
+  if (!rawTitle) return '';
+  let text = rawTitle.normalize('NFKC');
+
+  // 1. Remove bracketed content: (Lyrics), [Slowed + Reverb], (From "Movie"), (feat. Artist), etc.
+  text = text.replace(/\([^()]*\)|\[[^\[\]]*\]|\{[^{}]*\}/g, ' ');
+
+  // 2. Remove surrounding/embedded quotes around song title: "Kaise Hua" -> Kaise Hua
+  text = text.replace(/["'“”‘’«»]/g, ' ');
+
+  // 3. Remove leading YouTube descriptors: "LYRICAL: Kaise Hua", "Full Song: Kaise Hua", etc.
+  text = text.replace(
+    /^\s*(?:lyrical(?:\s+video)?|lyrics?|full\s+(?:song|video|audio|track)|official\s+(?:music\s+)?(?:video|audio)|video\s+song|audio\s+song|audio|video|teaser|trailer|promo|hd|4k|original|latest|new\s+song|exclusive)\s*[:\-–—|]\s*/i,
+    '',
+  );
+
+  // 4. Split by primary delimiters (pipe |, forward-slash /, bullet •, em-dash —, en-dash –)
+  // Example: "LYRICAL: Kaise Hua | Kabir Singh | Shahid K | Vishal Mishra"
+  // Example: "Kabir Singh : Kaise Hua | Shahid K"
+  const segments = text
+    .split(/\s*[\/|•–—]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  let mainSegment = segments[0] || text;
+
+  // If the segment still has a colon (e.g. "Kabir Singh : Kaise Hua" or "LYRICAL : Kaise Hua"):
+  if (mainSegment.includes(':')) {
+    const parts = mainSegment.split(':').map((p) => p.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      const right = parts.slice(1).join(' ').trim();
+      // If right side is not just a version suffix, it's the song title
+      if (right.length > 0) {
+        mainSegment = right;
+      }
+    }
+  }
+
+  // If the segment has " - " (e.g. "Song Title - Movie Name" or "Artist - Song Title"):
+  if (mainSegment.includes(' - ')) {
+    const parts = mainSegment.split(' - ').map((p) => p.trim()).filter(Boolean);
+    if (parts.length >= 2 && parts[0].length > 0) {
+      mainSegment = parts[0];
+    }
+  }
+
+  // 5. Clean punctuation, symbols, extra whitespace
+  const cleaned = mainSegment
     .toLowerCase()
-    .replace(/\([^()]*\)|\[[^\[\]]*\]/g, ' ')
     .replace(/[\p{P}\p{S}]+/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  return stripVersionSuffix(normalized);
+
+  // 6. Strip version suffixes (e.g. "lyrics", "official video", "slowed reverb", "remix")
+  const stripped = stripVersionSuffix(cleaned);
+  return stripped.length > 0 ? stripped : cleaned;
 }
 
 /**
- * Primary-artist key for recommendation-level comparisons (artist
- * diversity caps and the song key): fold() handles case, whitespace,
- * NFKC and bracketed credits ("Artist (feat. X)"), and this trims the
- * remaining in-line featured forms — "A feat. B", "A ft. B",
- * "A featuring B", "A with B" → "A" — so uploads crediting a guest
- * differently still read as one artist. Channel names never enter this:
- * Track carries provider METADATA only (no channel field).
+ * Case/whitespace/punctuation-insensitive fold for recommendation-level
+ * identity comparisons (song keys, artist diversity caps, section
+ * merging). Metadata equality with decoration removed, nothing looser.
+ */
+export function fold(text: string): string {
+  return extractCanonicalTitle(text);
+}
+
+/**
+ * Primary-artist key for recommendation-level comparisons:
+ * trims featured artist formats ("A feat. B", "A ft. B", "A with B" -> "A").
  */
 export function artistKey(artistName: string): string {
   const folded = fold(artistName);
@@ -141,13 +212,12 @@ export function artistKey(artistName: string): string {
 }
 
 /**
- * The canonical song key: same folded title + PRIMARY artist. Used for
- * Home section dedup, cross-section feed dedup, Recently Played display
- * dedup and automatic-queue recommendation dedup — everywhere a "same
- * song" question is asked. Playback identity stays trackIdentityKey().
+ * The canonical song key: same folded title = same song. Used for Home
+ * section dedup, cross-section feed dedup, Recently Played display dedup,
+ * search dedup, and automatic-queue recommendation dedup.
  */
 export function songKey(track: Track): string {
-  return `${fold(track.title)}|${artistKey(track.artist)}`;
+  return fold(track.title);
 }
 
 /**

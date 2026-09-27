@@ -320,17 +320,22 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
    */
   const feed = useMemo(() => {
     const shownSongKeys = new Set<string>();
-    const recommendationFeed = recommendationSections.map((section) => ({
-      ...section,
-      tracks: selectDistinctForDisplay(section.tracks, shownSongKeys),
-    }));
+    // When a category is active, recommendationFeed is empty so the category's tracks
+    // get top priority without being pushed down or polluted by unrelated search/play history.
+    const recommendationFeed =
+      selectedCategory === null
+        ? recommendationSections.map((section) => ({
+            ...section,
+            tracks: selectDistinctForDisplay(section.tracks, shownSongKeys),
+          }))
+        : [];
     return {
       recommendationFeed,
       quickPicks: selectDistinctForDisplay(quickPicksTracks, shownSongKeys).slice(0, 16),
       covers: selectDistinctForDisplay(coversTracks, shownSongKeys).slice(0, 12),
       trending: selectDistinctForDisplay(trendingTracks, shownSongKeys).slice(0, 12),
     };
-  }, [recommendationSections, quickPicksTracks, coversTracks, trendingTracks]);
+  }, [selectedCategory, recommendationSections, quickPicksTracks, coversTracks, trendingTracks]);
 
   const feedTracks = useMemo(
     () => [
@@ -444,95 +449,98 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
         {/* Discovery + personalized sections — local RecommendationService
             output (current-track context, signal sections, ranked
-            catch-all), song-deduplicated globally across the WHOLE feed
-            in the memo above. Rendered only with real candidates;
-            ranking lives in the service. */}
-        {feed.recommendationFeed.map((section) => (
-          <SongGridSection
-            key={section.id}
-            title={section.title}
-            tracks={section.tracks}
-            onSelectTrack={(_track, idx) => handlePlayTrackFromList(section.tracks, idx)}
-            onPlayAll={() => handlePlayAllFromList(section.tracks)}
-            onOptionsPress={(track) => setSelectedTrackForOptions(track)}
-          />
-        ))}
+            catch-all), rendered when no specific category is selected */}
+        {selectedCategory === null &&
+          feed.recommendationFeed.map((section) => (
+            <SongGridSection
+              key={section.id}
+              title={section.title}
+              tracks={section.tracks}
+              onSelectTrack={(_track, idx) => handlePlayTrackFromList(section.tracks, idx)}
+              onPlayAll={() => handlePlayAllFromList(section.tracks)}
+              onOptionsPress={(track) => setSelectedTrackForOptions(track)}
+            />
+          ))}
 
-        {/* 1. Quick picks — live InnerTube results; hidden until fetched */}
+        {/* 1. Quick picks / Category picks — live InnerTube results */}
         <SongGridSection
-          title="Quick picks"
+          title={selectedCategory ? `${selectedCategory} picks` : 'Quick picks'}
           tracks={feed.quickPicks}
           onSelectTrack={(_track, idx) => handlePlayTrackFromList(feed.quickPicks, idx)}
           onPlayAll={() => handlePlayAllFromList(feed.quickPicks)}
           onOptionsPress={(track) => setSelectedTrackForOptions(track)}
         />
 
-        {/* 2. Covers and remixes — live InnerTube results */}
+        {/* 2. Covers and remixes / Category mixes */}
         <SongGridSection
-          title="Covers and remixes"
+          title={selectedCategory ? `${selectedCategory} mixes & covers` : 'Covers and remixes'}
           tracks={feed.covers}
           onSelectTrack={(_track, idx) => handlePlayTrackFromList(feed.covers, idx)}
           onPlayAll={() => handlePlayAllFromList(feed.covers)}
           onOptionsPress={(track) => setSelectedTrackForOptions(track)}
         />
 
-        {/* 3. Trending songs for you — live InnerTube results */}
+        {/* 3. Trending songs */}
         <SongGridSection
-          title="Trending songs for you"
+          title={selectedCategory ? `Trending ${selectedCategory.toLowerCase()}` : 'Trending songs for you'}
           tracks={feed.trending}
           onSelectTrack={(_track, idx) => handlePlayTrackFromList(feed.trending, idx)}
           onPlayAll={() => handlePlayAllFromList(feed.trending)}
           onOptionsPress={(track) => setSelectedTrackForOptions(track)}
         />
 
-        {/* 4. Recently played — persisted playback history (newest first,
-            one entry per canonical song; hidden when the setting is off) */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.heading}>Recently played</Text>
-            <Pressable
-              onPress={() => navigation.navigate('RecentlyPlayedHistory')}
-              accessibilityRole="button"
-              accessibilityLabel="See all recently played"
-              hitSlop={8}
-            >
-              <Text style={styles.seeAll}>See all</Text>
-            </Pressable>
-          </View>
-          <RecentlyPlayed
-            tracks={displayHistory}
-            onSelect={(_track, idx) => handlePlayTrackFromList(displayHistory, idx)}
-          />
-        </View>
+        {/* Default feed extra sections: Recently played, Up next, Liked songs */}
+        {selectedCategory === null ? (
+          <>
+            {/* 4. Recently played */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.heading}>Recently played</Text>
+                <Pressable
+                  onPress={() => navigation.navigate('RecentlyPlayedHistory')}
+                  accessibilityRole="button"
+                  accessibilityLabel="See all recently played"
+                  hitSlop={8}
+                >
+                  <Text style={styles.seeAll}>See all</Text>
+                </Pressable>
+              </View>
+              <RecentlyPlayed
+                tracks={displayHistory}
+                onSelect={(_track, idx) => handlePlayTrackFromList(displayHistory, idx)}
+              />
+            </View>
 
-        {/* 5. Up next — the live PlayerController queue; hidden when idle */}
-        {upcomingQueueTracks.length > 0 ? (
-          <View style={styles.section}>
-            <UpNext
-              tracks={upcomingQueueTracks}
-              onSelectTrack={(index) => {
-                void playerController.playAt(queueIndex + 1 + index);
-                navigation.navigate('NowPlaying');
-              }}
-            />
-          </View>
+            {/* 5. Up next — the live PlayerController queue */}
+            {upcomingQueueTracks.length > 0 ? (
+              <View style={styles.section}>
+                <UpNext
+                  tracks={upcomingQueueTracks}
+                  onSelectTrack={(index) => {
+                    void playerController.playAt(queueIndex + 1 + index);
+                    navigation.navigate('NowPlaying');
+                  }}
+                />
+              </View>
+            ) : null}
+
+            {/* 6. Liked songs section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.heading}>Liked songs</Text>
+                <Pressable
+                  onPress={() => navigation.navigate('LikedSongs')}
+                  accessibilityRole="button"
+                  accessibilityLabel="See all liked songs"
+                  hitSlop={8}
+                >
+                  <Text style={styles.seeAll}>See all</Text>
+                </Pressable>
+              </View>
+              <LikedSongsSection />
+            </View>
+          </>
         ) : null}
-
-        {/* 6. Liked songs section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.heading}>Liked songs</Text>
-            <Pressable
-              onPress={() => navigation.navigate('LikedSongs')}
-              accessibilityRole="button"
-              accessibilityLabel="See all liked songs"
-              hitSlop={8}
-            >
-              <Text style={styles.seeAll}>See all</Text>
-            </Pressable>
-          </View>
-          <LikedSongsSection />
-        </View>
       </ScrollView>
 
       {/* 3-Dots Options Menu Bottom Sheet */}

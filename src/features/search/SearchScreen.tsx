@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import type { RootStackParamList } from '../../navigation';
 import { trackIdentityKey, type Track } from '../../core/types/track';
+import { songKey, alternateVersionCount } from '../../core/types/songKey';
 import { EXPERIMENTAL_SEARCH_PREWARM } from '../../core/constants/experimental';
 import { prewarmTrack } from '../../playback/ExperimentalTrackPreloader';
 import { musicService, playerController, searchHistory } from '../../services/composition';
@@ -225,12 +226,28 @@ export function SearchScreen({ navigation }: SearchScreenProps) {
         // local:X and online:X are different keys, so distinct sources never
         // merge, and trackIdentityKey semantics are untouched.
         const seenKeys = new Set<string>();
-        const dedupedTracks = tracks.filter((track) => {
+        const idDedupedTracks = tracks.filter((track) => {
           const key = trackIdentityKey(track);
           if (seenKeys.has(key)) return false;
           seenKeys.add(key);
           return true;
         });
+        // Second pass: song-level dedup by folded title so the same song
+        // uploaded by different YouTube channels (T-Series, Topic, lyrics
+        // channels…) collapses to ONE result. When two uploads share a
+        // songKey the one with fewer alternate-recording markers wins,
+        // preferring the canonical upload.
+        const bySong = new Map<string, Track>();
+        for (const track of idDedupedTracks) {
+          const sk = songKey(track);
+          const held = bySong.get(sk);
+          if (held === undefined) {
+            bySong.set(sk, track);
+          } else if (alternateVersionCount(track.title) < alternateVersionCount(held.title)) {
+            bySong.set(sk, track);
+          }
+        }
+        const dedupedTracks = [...bySong.values()];
         // Partial provider failure with usable results: keep the results AND
         // say what is missing — never a generic error over good local hits.
         setNotice(dedupedTracks.length > 0 ? partialFailureNotice(errors) : null);

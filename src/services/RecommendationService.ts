@@ -121,7 +121,14 @@ type QuerySource =
    * from history/likes/search signals). Carries no ranking bonus, and
    * Home refresh plans never contain it.
    */
-  | 'playback-context';
+  | 'playback-context'
+  /**
+   * Queue-context artist: a DISTINCT artist extracted from the existing
+   * queue (typically the original search results or album/playlist). Adds
+   * diversity to the auto-queue even when personalization is OFF — the
+   * queue the user chose already carries intent about variety.
+   */
+  | 'queue-context-artist';
 
 interface PlannedQuery {
   readonly query: string;
@@ -581,7 +588,18 @@ export class RecommendationService {
       ]);
     }
 
-    const plan = this.buildBatchQueryPlan(current, personalized);
+    // Extract distinct artists from the existing queue/source tracks for
+    // diversity: the user's queue (search results, album, playlist) already
+    // carries real variety — those artists seed additional queries so the
+    // auto-queue isn't locked to the current artist alone.
+    const queueArtists = [...new Set(
+      excluded
+        .filter((t) => t.origin === 'online')
+        .map((t) => t.artist.trim())
+        .filter((a) => a.length > 0 && artistKey(a) !== artistKey(current.artist)),
+    )];
+
+    const plan = this.buildBatchQueryPlan(current, personalized, queueArtists);
     if (plan.length === 0) return [];
 
     const currentIdentity = trackIdentityKey(current);
@@ -624,18 +642,21 @@ export class RecommendationService {
   /**
    * Batch query plan for the automatic Up Next fill: current-track
    * context FIRST (identical strings to Home's plan → cache hits), then
-   * up to 3 DISTINCT recent-playback artists, up to 3 DISTINCT liked
-   * artists, up to 2 recent search intents (only while Save search
-   * history is on — the same §9/§10 gate getAutoplayTrack honors) and the
-   * newest liked track. Deliberately NOT "<current artist> songs" ten
-   * times: each artist is queried at most once, the current artist is
-   * never re-queried as a signal, and the whole plan is hard-capped at
-   * AUTO_QUEUE_MAX_QUERIES. Personalization OFF ⇒ context queries only —
-   * no history/likes/search store is read (§10).
+   * up to 3 DISTINCT queue-context artists (other artists from the user's
+   * existing queue — search results, album, playlist — for diversity even
+   * with personalization OFF), then up to 3 DISTINCT recent-playback
+   * artists, up to 3 DISTINCT liked artists, up to 2 recent search
+   * intents (only while Save search history is on — the same §9/§10 gate
+   * getAutoplayTrack honors) and the newest liked track. Each artist is
+   * queried at most once, the current artist is never re-queried, and the
+   * whole plan is hard-capped at AUTO_QUEUE_MAX_QUERIES.
+   * Personalization OFF ⇒ context + queue-context queries only — no
+   * history/likes/search store is read (§10).
    */
   private buildBatchQueryPlan(
     current: Track,
     personalized: boolean,
+    queueArtists: readonly string[] = [],
   ): readonly PlannedQuery[] {
     const plan: PlannedQuery[] = [];
     const seenQueries = new Set<string>();
@@ -661,29 +682,42 @@ export class RecommendationService {
     // 1. Current-track context (always; shares strings with Home's plan).
     const title = current.title.trim();
     const currentArtistName = current.artist.trim();
-    if (title.length > 0 && currentArtistName.length > 0) {
-      pushQuery(`${title} ${currentArtistName}`, 'related-song');
+    const cleanTitle = fold(title);
+    const cleanArtist = artistKey(currentArtistName);
+    if (cleanTitle.length > 0) {
+      pushQuery(`${cleanTitle} similar songs`, 'related-song');
     }
     if (currentArtistName.length > 0) {
-      addArtistQuery(currentArtistName, 'current-artist');
+      addArtistQuery(cleanArtist || currentArtistName, 'current-artist');
     }
+
+    // 2. Queue-context artists — up to 3 DISTINCT artists from the user's
+    //    existing queue (search results, album, playlist). Runs REGARDLESS
+    //    of personalization: the queue the user chose already carries
+    //    intent about variety; using it requires no personal-signal store.
+    let queueAdded = 0;
+    for (const artist of queueArtists) {
+      if (queueAdded >= 3) break;
+      if (addArtistQuery(artist, 'queue-context-artist')) queueAdded += 1;
+    }
+
     if (!personalized) return plan;
 
-    // 2. Recent playback artists — up to 3 DISTINCT, never the current one.
+    // 3. Recent playback artists — up to 3 DISTINCT, never the current one.
     let recentAdded = 0;
     for (const track of this.deps.history.getSnapshot().slice(0, RECENT_SIGNAL_DEPTH)) {
       if (recentAdded >= 3) break;
       if (addArtistQuery(track.artist, 'recent-artist')) recentAdded += 1;
     }
 
-    // 3. Liked artists — up to 3 DISTINCT, skipping anything already queried.
+    // 4. Liked artists — up to 3 DISTINCT, skipping anything already queried.
     let likedAdded = 0;
     for (const track of this.deps.likedSongs.getSnapshot()) {
       if (likedAdded >= 3) break;
       if (addArtistQuery(track.artist, 'liked-artist')) likedAdded += 1;
     }
 
-    // 4. Newest distinct search intents (explicit user intent), gated on
+    // 5. Newest distinct search intents (explicit user intent), gated on
     //    the Save search history preference (§9/§10).
     if (this.searchHistoryEnabled) {
       let intents = 0;
@@ -700,7 +734,7 @@ export class RecommendationService {
       }
     }
 
-    // 5. Newest liked track as a metadata query (existing signal shape).
+    // 6. Newest liked track as a metadata query (existing signal shape).
     const newestLiked = this.deps.likedSongs.getSnapshot()[0];
     if (newestLiked) {
       pushQuery(`${newestLiked.title} ${newestLiked.artist}`, 'liked-track');
@@ -791,11 +825,13 @@ export class RecommendationService {
       if (current) {
         const title = current.title.trim();
         const artist = current.artist.trim();
-        if (title.length > 0 && artist.length > 0) {
-          push(`${title} ${artist}`, 'related-song', 'Related To This Song');
+        const cleanTitle = fold(title);
+        const cleanArtist = artistKey(artist);
+        if (cleanTitle.length > 0) {
+          push(`${cleanTitle} similar songs`, 'related-song', 'Related To This Song');
         }
         if (artist.length > 0) {
-          push(`${artist} songs`, 'current-artist', `More from ${artist}`);
+          push(`${cleanArtist || artist} songs`, 'current-artist', `More from ${artist}`);
         }
       }
     }
@@ -809,7 +845,13 @@ export class RecommendationService {
 
     const recentTrack = history.find((track) => track.artist.trim().length > 0);
     if (recentTrack) {
-      push(`${recentTrack.artist} songs`, 'recent-artist', `Because You Played ${recentTrack.title}`);
+      const cleanRecentTitle = fold(recentTrack.title);
+      const cleanRecentArtist = artistKey(recentTrack.artist);
+      push(
+        `${cleanRecentTitle || cleanRecentArtist} songs`,
+        'recent-artist',
+        `Because You Played ${cleanRecentTitle || recentTrack.title}`,
+      );
     }
 
     const recentArtistFold = recentTrack ? fold(recentTrack.artist) : '';
