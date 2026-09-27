@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import {
-  Alert,
   Animated,
-  Image,
   Modal,
   PanResponder,
   Pressable,
@@ -14,16 +12,25 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import type { Track } from '../../../core/types/track';
+import { trackIdentityKey, trackOrigin } from '../../../core/types/track';
 import { ArtworkPlaceholder } from '../../home/components/ArtworkPlaceholder';
 import { homeColors, homeRadius } from '../../home/theme';
 import { playerController } from '../../../services/composition';
 import { useDownloads } from '../../downloads/useDownloads';
+import { useSleepTimer } from '../../player/useSleepTimer';
 
 type OptionsMenuSheetProps = {
   visible: boolean;
   track: Track | null;
   onClose: () => void;
-  onSaveToPlaylist: () => void;
+  onShowAudioInfo?: () => void;
+  /**
+   * Opens the Sleep Timer sheet. Optional: the Sleep Timer row only renders
+   * where a host provides it (Now Playing), because the timer is player-
+   * level state and its sheet lives there — per-track surfaces that don't
+   * host the sheet don't show the row.
+   */
+  onShowSleepTimer?: () => void;
   onGoToArtist?: (artistName: string) => void;
 };
 
@@ -36,7 +43,8 @@ export function OptionsMenuSheet({
   visible,
   track,
   onClose,
-  onSaveToPlaylist,
+  onShowAudioInfo,
+  onShowSleepTimer,
   onGoToArtist,
 }: OptionsMenuSheetProps) {
   const insets = useSafeAreaInsets();
@@ -96,23 +104,95 @@ export function OptionsMenuSheet({
     [translateY],
   );
 
+  // Hooks first, unconditionally: download state subscribes here, BEFORE
+  // the null-track early return (calling hooks after a conditional return
+  // crashes the sheet the first time it opens).
+  const { isDownloaded, getActivity, downloadTrack, cancelDownload, removeDownload } =
+    useDownloads();
+  // Sleep-timer status for the row label — subscribes to the ONE timer store
+  // (hooks must run before the null-track early return below).
+  const sleepTimerSnapshot = useSleepTimer();
+
   if (!track) return null;
 
-  const { isDownloaded, downloadTrack, removeDownload } = useDownloads();
-  const downloaded = track ? isDownloaded(track) : false;
+  const downloaded = isDownloaded(track);
+  const activity = getActivity(track);
+  const isDownloading = activity?.status === 'downloading';
+  const isQueued = activity?.status === 'queued';
+  const downloadFailed = activity?.status === 'failed';
+  const downloadPercent =
+    activity?.status === 'downloading' && activity.totalBytes > 0
+      ? Math.round(activity.progress * 100)
+      : null;
+  // MediaStore tracks already live on the device — downloading one would
+  // just duplicate it, so the action is not offered for them.
+  const canDownload = trackOrigin(track) === 'online';
+
+  // Is this track an UPCOMING item of the active queue? Identity-aware
+  // (origin:id), so a `local:X` can never be removed through an `online:X`
+  // row, and the currently playing item is never a removal candidate — the
+  // row only appears where "Remove from queue" is semantically true.
+  const playerSnapshot = playerController.getSnapshot();
+  const queuedIndex = playerSnapshot.queue.findIndex(
+    (queuedTrack, i) =>
+      i !== playerSnapshot.queueIndex &&
+      trackIdentityKey(queuedTrack) === trackIdentityKey(track),
+  );
+  const isUpcomingInQueue = queuedIndex >= 0;
+
+  // Concise sleep-timer status per product spec: inactive → plain label,
+  // active → "Sleep Timer · 27 min" / "Sleep Timer · End of track".
+  const sleepTimerRowLabel =
+    sleepTimerSnapshot.mode === 'duration' && sleepTimerSnapshot.remainingMs !== null
+      ? `Sleep Timer · ${Math.max(1, Math.ceil(sleepTimerSnapshot.remainingMs / 60_000))} min`
+      : sleepTimerSnapshot.mode === 'end-of-track'
+        ? 'Sleep Timer · End of track'
+        : 'Sleep Timer';
+
+  // One action per state, never contradictory: Downloaded → Delete,
+  // Downloading → Cancel (with live percent), Queued → Cancel (waiting
+  // for a slot or a retry backoff), Failed → Retry, else Download.
+  const downloadLabel = downloaded
+    ? 'Downloaded'
+    : isDownloading
+      ? downloadPercent !== null
+        ? `Cancel • ${downloadPercent}%`
+        : 'Cancel download'
+      : isQueued
+        ? 'Cancel • Waiting'
+        : downloadFailed
+          ? 'Retry'
+          : 'Download';
+
+  const downloadIcon = downloaded
+    ? 'checkmark-circle'
+    : isDownloading
+      ? 'close-circle-outline'
+      : isQueued
+        ? 'time-outline'
+        : downloadFailed
+          ? 'refresh-outline'
+          : 'arrow-down-circle-outline';
+
+  const downloadColor = downloaded || isDownloading || isQueued
+    ? '#4cc9f0'
+    : downloadFailed
+      ? '#ff4d6d'
+      : homeColors.text;
 
   const handleToggleDownload = () => {
     if (!track) return;
     if (downloaded) {
+      // Remove download: file deleted, then entry — UI follows the store.
       removeDownload(track);
+    } else if (isDownloading || isQueued) {
+      // Tapping an in-flight download cancels it — active: partial file
+      // cleaned up natively; queued: dropped from the queue immediately.
+      cancelDownload(track);
     } else {
+      // Idle or failed → (re)start; startDownload joins any in-flight op.
       downloadTrack(track);
     }
-  };
-
-  const handlePlayNext = () => {
-    playerController.playNextTrack(track);
-    handleDismiss();
   };
 
   const handleAddToQueue = () => {
@@ -125,14 +205,24 @@ export function OptionsMenuSheet({
     handleDismiss();
   };
 
-  const handleSleepTimer = () => {
+  const handleRemoveFromQueue = () => {
+    // Re-read at press time: the index may have shifted since this render.
+    const snapshot = playerController.getSnapshot();
+    const index = snapshot.queue.findIndex(
+      (queuedTrack, i) =>
+        i !== snapshot.queueIndex &&
+        trackIdentityKey(queuedTrack) === trackIdentityKey(track),
+    );
+    if (index >= 0) playerController.removeFromQueue(index);
     handleDismiss();
-    Alert.alert('Sleep Timer', 'Choose duration:', [
-      { text: '15 Minutes', onPress: () => setTimeout(() => void playerController.stop(), 15 * 60 * 1000) },
-      { text: '30 Minutes', onPress: () => setTimeout(() => void playerController.stop(), 30 * 60 * 1000) },
-      { text: '1 Hour', onPress: () => setTimeout(() => void playerController.stop(), 60 * 60 * 1000) },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+  };
+
+  const handleSleepTimer = () => {
+    // Real sleep timer lives in its own sheet (SleepTimerSheet) driven by
+    // the ONE SleepTimer store — this row only opens it after this menu
+    // dismisses. No raw setTimeout, no direct playback control here.
+    handleDismiss();
+    if (onShowSleepTimer) onShowSleepTimer();
   };
 
   return (
@@ -190,48 +280,6 @@ export function OptionsMenuSheet({
             </View>
           </View>
 
-          {/* Quick Action Tiles */}
-          <View style={styles.tilesContainer}>
-            <Pressable
-              style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
-              onPress={handlePlayNext}
-              accessibilityRole="button"
-              accessibilityLabel="Play next"
-            >
-              <Ionicons name="play-forward-outline" size={22} color={homeColors.text} />
-              <Text style={styles.tileText}>Play next</Text>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
-              onPress={handleToggleDownload}
-              accessibilityRole="button"
-              accessibilityLabel={downloaded ? 'Remove download' : 'Download track'}
-            >
-              <Ionicons
-                name={downloaded ? 'checkmark-circle' : 'arrow-down-circle-outline'}
-                size={22}
-                color={downloaded ? '#4cc9f0' : homeColors.text}
-              />
-              <Text style={[styles.tileText, downloaded && { color: '#4cc9f0' }]}>
-                {downloaded ? 'Downloaded' : 'Download'}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
-              onPress={() => {
-                handleDismiss();
-                onSaveToPlaylist();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Save to playlist"
-            >
-              <Ionicons name="bookmark-outline" size={22} color={homeColors.text} />
-              <Text style={styles.tileText}>Save</Text>
-            </Pressable>
-          </View>
-
           {/* Action List Rows */}
           <View style={styles.menuList}>
             <Pressable
@@ -242,6 +290,63 @@ export function OptionsMenuSheet({
             >
               <Ionicons name="list-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
               <Text style={styles.menuText}>Add to queue</Text>
+            </Pressable>
+
+            {/* Download — identical state machine (downloaded / downloading /
+                queued / failed → delete / cancel / retry), now as a normal
+                list row. Hidden for MediaStore tracks, as before. */}
+            {canDownload ? (
+              <Pressable
+                style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
+                onPress={handleToggleDownload}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  downloaded
+                    ? 'Remove download'
+                    : isDownloading
+                      ? 'Cancel download'
+                      : isQueued
+                        ? 'Cancel queued download'
+                        : downloadFailed
+                          ? 'Retry download'
+                          : 'Download track'
+                }
+              >
+                <Ionicons name={downloadIcon} size={22} color={downloadColor} style={styles.menuIcon} />
+                <Text
+                  style={[
+                    styles.menuText,
+                    downloadColor !== homeColors.text && { color: downloadColor },
+                  ]}
+                >
+                  {downloadLabel}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {isUpcomingInQueue ? (
+              <Pressable
+                style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
+                onPress={handleRemoveFromQueue}
+                accessibilityRole="button"
+                accessibilityLabel="Remove from queue"
+              >
+                <Ionicons name="remove-circle-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
+                <Text style={styles.menuText}>Remove from queue</Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
+              onPress={() => {
+                handleDismiss();
+                if (onShowAudioInfo) onShowAudioInfo();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Audio and source information"
+            >
+              <Ionicons name="information-circle-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
+              <Text style={styles.menuText}>Audio &amp; source info</Text>
             </Pressable>
 
             <Pressable
@@ -268,16 +373,17 @@ export function OptionsMenuSheet({
               <Ionicons name="trash-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
               <Text style={styles.menuText}>Dismiss queue</Text>
             </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
-              onPress={handleSleepTimer}
-              accessibilityRole="button"
-              accessibilityLabel="Sleep timer"
-            >
-              <Ionicons name="moon-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Sleep timer</Text>
-            </Pressable>
+            {onShowSleepTimer ? (
+              <Pressable
+                style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
+                onPress={handleSleepTimer}
+                accessibilityRole="button"
+                accessibilityLabel={sleepTimerRowLabel}
+              >
+                <Ionicons name="moon-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
+                <Text style={styles.menuText}>{sleepTimerRowLabel}</Text>
+              </Pressable>
+            ) : null}
           </View>
         </Animated.View>
       </View>
@@ -361,32 +467,6 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  tilesContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: homeColors.border,
-  },
-  tile: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: homeRadius.surface,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: homeColors.border,
-  },
-  tilePressed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  tileText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: homeColors.text,
   },
   menuList: {
     paddingVertical: 8,
