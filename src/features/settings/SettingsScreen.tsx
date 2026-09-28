@@ -19,6 +19,7 @@ import {
   searchHistory,
   settings,
 } from '../../services/composition';
+import { updateService } from '../../services/UpdateService';
 import { useDownloads } from '../downloads/useDownloads';
 import { homeColors, homeRadius, homeSpacing, sectionHeading } from '../home/theme';
 import {
@@ -274,6 +275,31 @@ export function SettingsScreen() {
               <Text style={styles.rowTitle}>Version</Text>
               <Text style={styles.rowValue}>{appConfig.expo.version}</Text>
             </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.row,
+                styles.rowDivider,
+                pressed && styles.rowPressed,
+              ]}
+              onPress={() => {
+                void updateService.check().then(() => {
+                  const state = updateService.getSnapshot().state;
+                  if (state === 'idle') {
+                    Alert.alert('Up to date', `Aero is currently on the latest version (v${appConfig.expo.version}).`);
+                  }
+                }).catch(() => {
+                  Alert.alert('Update check failed', 'Could not reach GitHub releases at the moment.');
+                });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Check for updates"
+            >
+              <View style={styles.rowText}>
+                <Text style={styles.rowTitle}>Check for updates</Text>
+                <Text style={styles.rowDescription}>Check GitHub releases for new version</Text>
+              </View>
+              <Ionicons name="cloud-download-outline" size={18} color="#4cc9f0" />
+            </Pressable>
           </View>
         </View>
       </ScrollView>

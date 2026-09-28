@@ -4,6 +4,7 @@ import { TactilePressable } from '../../common/TactilePressable';
 import { LiquidGlassView } from '../../common/LiquidGlassView';
 
 const CATEGORIES = [
+  'Viral Reels',
   'Podcasts',
   'Work out',
   'Feel good',

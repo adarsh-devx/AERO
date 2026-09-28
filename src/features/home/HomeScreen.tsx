@@ -56,10 +56,34 @@ const TRENDING_QUERIES = [
   'Top Viral Songs 2024',
 ];
 
+/** Viral Reels pools: Indie breakout creators + Major label blockbusters */
+const VIRAL_REELS_INDIE_QUERIES = [
+  'Instagram viral hindi reels audio songs',
+  'Trending indie hindi songs reels breakout',
+  'Viral acoustic indie hindi reels songs',
+  'Indie pop viral hindi reels audio hits',
+  'Viral reels hindi banjaare songs',
+];
+
+const VIRAL_REELS_LABEL_QUERIES = [
+  'Top trending bollywood reels songs hits',
+  'Latest viral hindi songs 2026',
+  'Trending hindi dance reels songs',
+  'Viral reels hindi pop hits',
+];
+
 /**
  * Rich multi-query pools per category chip to fetch 40-50+ diverse tracks
  */
 const CATEGORY_FEED_QUERIES: Readonly<Record<string, readonly string[]>> = {
+  'Viral Reels': [
+    'Instagram viral hindi reels audio songs',
+    'Trending indie hindi songs reels audio',
+    'Latest trending hindi reels audio songs',
+    'Viral reels songs hindi indie hits',
+    'Top viral reels bollywood songs',
+    'Breakout indie pop trending hindi reels',
+  ],
   Podcasts: [
     'popular podcasts full episodes',
     'hindi audio podcast stories',
@@ -187,6 +211,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     recommendationService.getSnapshot,
   );
 
+  const [viralReelsTracks, setViralReelsTracks] = useState<readonly Track[]>([]);
   const [quickPicksTracks, setQuickPicksTracks] = useState<readonly Track[]>([]);
   const [coversTracks, setCoversTracks] = useState<readonly Track[]>([]);
   const [trendingTracks, setTrendingTracks] = useState<readonly Track[]>([]);
@@ -198,10 +223,12 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [feedStatus, setFeedStatus] = useState<FeedStatus>('loading');
   /** Last query each feed slot used — so the next refresh picks a fresh one. */
   const lastFeedQueriesRef = useRef<{
+    viralIndie: string | null;
+    viralLabel: string | null;
     quick: string | null;
     covers: string | null;
     trend: string | null;
-  }>({ quick: null, covers: null, trend: null });
+  }>({ viralIndie: null, viralLabel: null, quick: null, covers: null, trend: null });
   /**
    * Latest-wins guard: every fetch takes the next id, and only the request
    * still holding the newest id may apply results. Rapid
@@ -229,6 +256,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
     // Switching to a DIFFERENT category clears the previous results
     if (category !== lastFetchedCategoryRef.current) {
+      setViralReelsTracks([]);
       setQuickPicksTracks([]);
       setCoversTracks([]);
       setTrendingTracks([]);
@@ -255,14 +283,18 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       return;
     }
 
-    // 2. Default feed: randomized fresh-query picking
+    // 2. Default feed: randomized fresh-query picking with Viral Reels blend
     setCategoryTracks([]);
     const lastQueries = lastFeedQueriesRef.current;
+    const viralIndieQuery = pickFreshQuery(VIRAL_REELS_INDIE_QUERIES, lastQueries.viralIndie);
+    const viralLabelQuery = pickFreshQuery(VIRAL_REELS_LABEL_QUERIES, lastQueries.viralLabel);
     const quickQuery = pickFreshQuery(QUICK_PICK_QUERIES, lastQueries.quick);
     const coverQuery = pickFreshQuery(COVERS_REMIXES_QUERIES, lastQueries.covers);
     const trendQuery = pickFreshQuery(TRENDING_QUERIES, lastQueries.trend);
 
-    const [quickRes, coverRes, trendRes] = await Promise.allSettled([
+    const [viralIndieRes, viralLabelRes, quickRes, coverRes, trendRes] = await Promise.allSettled([
+      musicService.search(viralIndieQuery),
+      musicService.search(viralLabelQuery),
       musicService.search(quickQuery),
       musicService.search(coverQuery),
       musicService.search(trendQuery),
@@ -271,6 +303,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     if (!isLatest() || !isMountedRef.current) return;
 
     lastFeedQueriesRef.current = {
+      viralIndie: viralIndieQuery,
+      viralLabel: viralLabelQuery,
       quick: quickQuery,
       covers: coverQuery,
       trend: trendQuery,
@@ -278,6 +312,21 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     lastFetchedCategoryRef.current = null;
 
     let loadedAny = false;
+
+    // Blend Indie viral sensations and Major label hits (alternate 1:1)
+    const indieTracks = viralIndieRes.status === 'fulfilled' ? viralIndieRes.value.tracks : [];
+    const labelTracks = viralLabelRes.status === 'fulfilled' ? viralLabelRes.value.tracks : [];
+    const interleavedViral: Track[] = [];
+    const maxViralLen = Math.max(indieTracks.length, labelTracks.length);
+    for (let i = 0; i < maxViralLen; i++) {
+      if (i < indieTracks.length) interleavedViral.push(indieTracks[i]);
+      if (i < labelTracks.length) interleavedViral.push(labelTracks[i]);
+    }
+    if (interleavedViral.length > 0) {
+      setViralReelsTracks(interleavedViral);
+      loadedAny = true;
+    }
+
     if (quickRes.status === 'fulfilled' && quickRes.value.tracks.length > 0) {
       setQuickPicksTracks(quickRes.value.tracks);
       loadedAny = true;
@@ -342,6 +391,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       const categoryList = dedupeNewestFirst(categoryTracks).slice(0, 50);
       return {
         recommendationFeed: [],
+        viralReels: [],
         quickPicks: [],
         covers: [],
         trending: [],
@@ -354,12 +404,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     }));
     return {
       recommendationFeed,
+      viralReels: selectDistinctForDisplay(viralReelsTracks, shownSongKeys).slice(0, 16),
       quickPicks: selectDistinctForDisplay(quickPicksTracks, shownSongKeys).slice(0, 16),
       covers: selectDistinctForDisplay(coversTracks, shownSongKeys).slice(0, 12),
       trending: selectDistinctForDisplay(trendingTracks, shownSongKeys).slice(0, 12),
       categoryList: [],
     };
-  }, [selectedCategory, categoryTracks, recommendationSections, quickPicksTracks, coversTracks, trendingTracks]);
+  }, [selectedCategory, categoryTracks, recommendationSections, viralReelsTracks, quickPicksTracks, coversTracks, trendingTracks]);
 
   const feedTracks = useMemo(
     () =>
@@ -367,6 +418,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         ? feed.categoryList
         : [
             ...feed.recommendationFeed.flatMap((section) => section.tracks),
+            ...feed.viralReels,
             ...feed.quickPicks,
             ...feed.covers,
             ...feed.trending,
@@ -551,7 +603,18 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               />
             ))}
 
-            {/* 1. Quick picks */}
+            {/* 1. Viral on Reels (Instagram trending hits & indie breakout) */}
+            {feed.viralReels.length > 0 && (
+              <SongGridSection
+                title="🔥 Trending on Reels (Hindi)"
+                tracks={feed.viralReels}
+                onSelectTrack={(_track, idx) => handlePlayTrackFromList(feed.viralReels, idx)}
+                onPlayAll={() => handlePlayAllFromList(feed.viralReels)}
+                onOptionsPress={(track) => setSelectedTrackForOptions(track)}
+              />
+            )}
+
+            {/* 2. Quick picks */}
             <SongGridSection
               title="Quick picks"
               tracks={feed.quickPicks}
