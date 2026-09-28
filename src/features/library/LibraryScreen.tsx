@@ -40,7 +40,7 @@ type SortType = 'recent' | 'recently_added' | 'alphabetical' | 'artist' | 'size'
 /** Status filter inside the Downloads section (§13). */
 type DownloadStatusFilter = 'all' | 'downloaded' | 'queued' | 'downloading' | 'failed';
 
-const FILTER_CHIPS: FilterType[] = ['Downloads', 'Playlists', 'Songs', 'Local', 'Artists'];
+const FILTER_CHIPS: FilterType[] = ['Downloads', 'Playlists', 'Local'];
 
 const SORT_LABELS: Record<SortType, string> = {
   recent: 'Recent activity',

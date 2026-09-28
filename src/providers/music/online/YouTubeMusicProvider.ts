@@ -69,6 +69,18 @@ const LOUDNESS_CACHE_LIMIT = 200;
 /** The only accepted shape of a provider video id (direct id lookup). */
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
+/**
+ * Maximum length for music tracks: 20 minutes (1,200,000 ms).
+ * Prevents full movies, web series, and multi-hour streams from polluting music results.
+ */
+const MAX_MUSIC_TRACK_DURATION_MS = 20 * 60 * 1000;
+
+/**
+ * Filter for non-music content like full movies, full episodes, news, and gaming streams.
+ */
+const NON_MUSIC_CONTENT_PATTERN =
+  /\b(?:full movie|complete movie|full length movie|hindi dubbed movie|blockbuster movie|full film|south movie|south hindi movie|web series|full episode|complete episode|live stream|gaming stream)\b/i;
+
 /** Suggestion rows the UI is given at most, in the order InnerTube returned them. */
 const SUGGESTION_LIMIT = 10;
 
@@ -541,12 +553,14 @@ export class YouTubeMusicProvider implements OnlineMusicProvider {
     for (const v of renderers) {
       const videoId = v.videoId;
       if (!videoId || seenIds.has(videoId)) continue;
-      seenIds.add(videoId);
 
       const title =
         v.title?.runs?.map((r: any) => r.text).join('') ||
         v.title?.simpleText ||
         'Unknown Title';
+
+      // Filter out non-music titles (full movies, web series, full episodes)
+      if (NON_MUSIC_CONTENT_PATTERN.test(title)) continue;
 
       const artist =
         v.ownerText?.runs?.map((r: any) => r.text).join('') ||
@@ -562,6 +576,11 @@ export class YouTubeMusicProvider implements OnlineMusicProvider {
       // Real duration already present in THIS search response
       // (lengthText.simpleText). Absent/malformed → field omitted.
       const durationMs = parseClockDurationMs(v.lengthText?.simpleText);
+
+      // Filter out full length movies / multi-hour videos (longer than 20 minutes)
+      if (durationMs !== null && durationMs > MAX_MUSIC_TRACK_DURATION_MS) continue;
+
+      seenIds.add(videoId);
 
       tracks.push({
         id: videoId,
@@ -600,7 +619,9 @@ export class YouTubeMusicProvider implements OnlineMusicProvider {
           const rawUrl: string = item.url ?? '';
           const videoId = rawUrl.replace('/watch?v=', '').trim();
           if (!videoId || seenIds.has(videoId)) continue;
-          seenIds.add(videoId);
+
+          const rawTitle = item.title ?? 'Unknown Title';
+          if (NON_MUSIC_CONTENT_PATTERN.test(rawTitle)) continue;
 
           // Duration in seconds already present in this search response
           // (-1/absent/malformed → field omitted, never a fabricated length).
@@ -610,9 +631,13 @@ export class YouTubeMusicProvider implements OnlineMusicProvider {
               ? Math.round(durationSeconds * 1000)
               : null;
 
+          if (durationMs !== null && durationMs > MAX_MUSIC_TRACK_DURATION_MS) continue;
+
+          seenIds.add(videoId);
+
           tracks.push({
             id: videoId,
-            title: decodeHtmlEntities(item.title ?? 'Unknown Title'),
+            title: decodeHtmlEntities(rawTitle),
             artist: decodeHtmlEntities(item.uploaderName ?? item.artist ?? 'Unknown Artist'),
             artworkUri: item.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
             origin: 'online',

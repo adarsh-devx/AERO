@@ -26,8 +26,8 @@
  * written here.
  */
 
-/** Minimum normalization gain: -15 dB (the most attenuation allowed). */
-export const MIN_GAIN_MB = -1500;
+/** Minimum normalization gain: -3 dB (-300 mB) to preserve clarity, fullness, and dynamic punch. */
+export const MIN_GAIN_MB = -300;
 
 /**
  * Maximum normalization gain: +3 dB (the most boost allowed). Deliberately

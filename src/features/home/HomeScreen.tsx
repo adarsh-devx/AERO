@@ -3,6 +3,8 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+import { Ionicons } from '@expo/vector-icons';
+
 import type { RootStackParamList } from '../../navigation';
 import type { Track } from '../../core/types/track';
 import { musicService, playerController, recommendationService } from '../../services/composition';
@@ -14,9 +16,11 @@ import {
   selectDistinctForDisplay,
 } from '../../core/types/songKey';
 import { usePrewarmTracks } from '../../playback/usePrewarmTracks';
+import { TactilePressable } from '../common/TactilePressable';
 import { homeColors, homeSpacing } from './theme';
 import { HomeHeader } from './components/HomeHeader';
 import { CategoryChips } from './components/CategoryChips';
+import { ArtworkPlaceholder } from './components/ArtworkPlaceholder';
 import { SongGridSection } from './components/SongGridSection';
 import { LikedSongsSection } from './components/LikedSongsSection';
 import { RecentlyPlayed } from './components/RecentlyPlayed';
@@ -53,61 +57,64 @@ const TRENDING_QUERIES = [
 ];
 
 /**
- * Real provider queries behind each category chip — every entry is a plain
- * music/content search through the EXISTING MusicService → InnerTube path
- * (the same architecture the default feed already uses), so results are
- * genuinely different per chip with no local lists, no demo songs and no
- * filtering of the same hardcoded results. Three DIFFERENT phrasings per
- * category keep Quick picks / Covers and remixes / Trending genuinely
- * distinct sections instead of the same answer three times.
- *
- * Category taps are explicit USER discovery (like typing in Search), so
- * they work regardless of the Personalized Home setting; they never touch
- * search history or any signal store.
+ * Rich multi-query pools per category chip to fetch 40-50+ diverse tracks
  */
-const CATEGORY_FEED_QUERIES: Readonly<
-  Record<string, { readonly quick: string; readonly covers: string; readonly trend: string }>
-> = {
-  Podcasts: {
-    quick: 'popular podcasts',
-    covers: 'podcast episodes discussion',
-    trend: 'new podcast shows',
-  },
-  'Work out': {
-    quick: 'workout motivation songs',
-    covers: 'gym workout music mix',
-    trend: 'high energy workout hits',
-  },
-  'Feel good': {
-    quick: 'feel good happy songs',
-    covers: 'upbeat happy music mix',
-    trend: 'feel good hit songs',
-  },
-  Energise: {
-    quick: 'energetic dance songs',
-    covers: 'energy boost music mix',
-    trend: 'high energy party hits',
-  },
-  Relax: {
-    quick: 'relaxing calm songs',
-    covers: 'chill relaxing music mix',
-    trend: 'chill vibe hit songs',
-  },
-  Focus: {
-    quick: 'focus instrumental music',
-    covers: 'study deep focus music',
-    trend: 'focus flow songs',
-  },
-  Party: {
-    quick: 'party dance songs',
-    covers: 'party hits music mix',
-    trend: 'dance floor party anthems',
-  },
-  Romance: {
-    quick: 'romantic love songs',
-    covers: 'romantic music hits mix',
-    trend: 'love song classics',
-  },
+const CATEGORY_FEED_QUERIES: Readonly<Record<string, readonly string[]>> = {
+  Podcasts: [
+    'popular podcasts full episodes',
+    'hindi audio podcast stories',
+    'trending podcast shows',
+    'motivational podcasts audio',
+  ],
+  'Work out': [
+    'workout motivation songs',
+    'gym workout music mix',
+    'high energy workout hits',
+    'cardio training edm music',
+    'beast mode gym songs',
+  ],
+  'Feel good': [
+    'feel good happy songs',
+    'upbeat happy music mix',
+    'feel good bollywood hit songs',
+    'positive morning vibes songs',
+    'cheerful pop hits',
+  ],
+  Energise: [
+    'energetic dance songs',
+    'energy boost music mix',
+    'high energy party hits',
+    'electronic dance beats',
+    'pump up songs hype',
+  ],
+  Relax: [
+    'relaxing calm songs',
+    'chill relaxing music mix',
+    'chill vibe hit songs',
+    'lofi peaceful instrumental',
+    'peaceful acoustic soothing songs',
+  ],
+  Focus: [
+    'focus instrumental music',
+    'study deep focus music',
+    'focus flow ambient songs',
+    'concentration study beats lofi',
+    'deep focus piano',
+  ],
+  Party: [
+    'party dance songs bollywood',
+    'top party hits dance mix',
+    'dance floor party anthems',
+    'punjabi club party bangers',
+    'party mashup dj songs',
+  ],
+  Romance: [
+    'romantic love songs bollywood',
+    'romantic music hits mix',
+    'love song classics hindi',
+    'bollywood romantic acoustic',
+    'latest romantic hits',
+  ],
 };
 
 /** Home feed fetch state — honest loading/error UI for the category feed. */
@@ -183,6 +190,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [quickPicksTracks, setQuickPicksTracks] = useState<readonly Track[]>([]);
   const [coversTracks, setCoversTracks] = useState<readonly Track[]>([]);
   const [trendingTracks, setTrendingTracks] = useState<readonly Track[]>([]);
+  const [categoryTracks, setCategoryTracks] = useState<readonly Track[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   /** Controlled chip selection — drives queries AND survives refresh. */
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -220,23 +228,39 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     const isLatest = () => feedRequestIdRef.current === requestId;
 
     // Switching to a DIFFERENT category clears the previous results
-    // immediately: the old category's songs must never render under the
-    // new selection, and the loading state stays honest. Refreshing the
-    // SAME category keeps current content visible while it reloads.
     if (category !== lastFetchedCategoryRef.current) {
       setQuickPicksTracks([]);
       setCoversTracks([]);
       setTrendingTracks([]);
+      setCategoryTracks([]);
     }
     setFeedStatus('loading');
 
-    // Category → real intent queries (existing provider path); default feed
-    // keeps its randomized fresh-query picking.
-    const plan = category !== null ? CATEGORY_FEED_QUERIES[category] : undefined;
+    // 1. Category selected: fetch rich multi-query pool for 40-50+ tracks
+    if (category !== null) {
+      const queries = CATEGORY_FEED_QUERIES[category] ?? [category];
+      const results = await Promise.allSettled(queries.map((q) => musicService.search(q)));
+
+      if (!isLatest() || !isMountedRef.current) return;
+
+      lastFetchedCategoryRef.current = category;
+      const combined: Track[] = [];
+      for (const res of results) {
+        if (res.status === 'fulfilled' && res.value.tracks.length > 0) {
+          combined.push(...res.value.tracks);
+        }
+      }
+      setCategoryTracks(combined);
+      setFeedStatus(combined.length > 0 ? 'ready' : 'error');
+      return;
+    }
+
+    // 2. Default feed: randomized fresh-query picking
+    setCategoryTracks([]);
     const lastQueries = lastFeedQueriesRef.current;
-    const quickQuery = plan ? plan.quick : pickFreshQuery(QUICK_PICK_QUERIES, lastQueries.quick);
-    const coverQuery = plan ? plan.covers : pickFreshQuery(COVERS_REMIXES_QUERIES, lastQueries.covers);
-    const trendQuery = plan ? plan.trend : pickFreshQuery(TRENDING_QUERIES, lastQueries.trend);
+    const quickQuery = pickFreshQuery(QUICK_PICK_QUERIES, lastQueries.quick);
+    const coverQuery = pickFreshQuery(COVERS_REMIXES_QUERIES, lastQueries.covers);
+    const trendQuery = pickFreshQuery(TRENDING_QUERIES, lastQueries.trend);
 
     const [quickRes, coverRes, trendRes] = await Promise.allSettled([
       musicService.search(quickQuery),
@@ -244,9 +268,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       musicService.search(trendQuery),
     ]);
 
-    // Latest-wins + unmount guard: a slower earlier request can never
-    // overwrite a newer category's results, and nothing applies after the
-    // screen is gone.
     if (!isLatest() || !isMountedRef.current) return;
 
     lastFeedQueriesRef.current = {
@@ -254,11 +275,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       covers: coverQuery,
       trend: trendQuery,
     };
-    lastFetchedCategoryRef.current = category;
+    lastFetchedCategoryRef.current = null;
 
-    // Keep the FULL result list: display dedup + artist diversity run
-    // first (in the feed memo below) and section sizes are applied
-    // afterwards, so collapsing alternate uploads never shrinks a grid.
     let loadedAny = false;
     if (quickRes.status === 'fulfilled' && quickRes.value.tracks.length > 0) {
       setQuickPicksTracks(quickRes.value.tracks);
@@ -320,31 +338,40 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
    */
   const feed = useMemo(() => {
     const shownSongKeys = new Set<string>();
-    // When a category is active, recommendationFeed is empty so the category's tracks
-    // get top priority without being pushed down or polluted by unrelated search/play history.
-    const recommendationFeed =
-      selectedCategory === null
-        ? recommendationSections.map((section) => ({
-            ...section,
-            tracks: selectDistinctForDisplay(section.tracks, shownSongKeys),
-          }))
-        : [];
+    if (selectedCategory !== null) {
+      const categoryList = dedupeNewestFirst(categoryTracks).slice(0, 50);
+      return {
+        recommendationFeed: [],
+        quickPicks: [],
+        covers: [],
+        trending: [],
+        categoryList,
+      };
+    }
+    const recommendationFeed = recommendationSections.map((section) => ({
+      ...section,
+      tracks: selectDistinctForDisplay(section.tracks, shownSongKeys),
+    }));
     return {
       recommendationFeed,
       quickPicks: selectDistinctForDisplay(quickPicksTracks, shownSongKeys).slice(0, 16),
       covers: selectDistinctForDisplay(coversTracks, shownSongKeys).slice(0, 12),
       trending: selectDistinctForDisplay(trendingTracks, shownSongKeys).slice(0, 12),
+      categoryList: [],
     };
-  }, [selectedCategory, recommendationSections, quickPicksTracks, coversTracks, trendingTracks]);
+  }, [selectedCategory, categoryTracks, recommendationSections, quickPicksTracks, coversTracks, trendingTracks]);
 
   const feedTracks = useMemo(
-    () => [
-      ...feed.recommendationFeed.flatMap((section) => section.tracks),
-      ...feed.quickPicks,
-      ...feed.covers,
-      ...feed.trending,
-    ],
-    [feed],
+    () =>
+      selectedCategory !== null
+        ? feed.categoryList
+        : [
+            ...feed.recommendationFeed.flatMap((section) => section.tracks),
+            ...feed.quickPicks,
+            ...feed.covers,
+            ...feed.trending,
+          ],
+    [selectedCategory, feed],
   );
   usePrewarmTracks(feedTracks);
 
@@ -447,51 +474,110 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           </Pressable>
         ) : null}
 
-        {/* Discovery + personalized sections — local RecommendationService
-            output (current-track context, signal sections, ranked
-            catch-all), rendered when no specific category is selected */}
-        {selectedCategory === null &&
-          feed.recommendationFeed.map((section) => (
+        {/* Category Mode: Clean vertical column list of 40-50 tracks */}
+        {selectedCategory !== null ? (
+          <View style={styles.section}>
+            {feed.categoryList.length > 0 ? (
+              <>
+                <View style={styles.categoryHeaderRow}>
+                  <View>
+                    <Text style={styles.categoryHeaderTitle}>{selectedCategory} Mix</Text>
+                    <Text style={styles.categoryHeaderSubtitle}>{feed.categoryList.length} tracks</Text>
+                  </View>
+                  <TactilePressable
+                    activeScale={0.92}
+                    style={styles.categoryPlayAllButton}
+                    onPress={() => handlePlayAllFromList(feed.categoryList)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Play all ${selectedCategory} tracks`}
+                  >
+                    <Ionicons name="play" size={15} color="#000000" style={{ marginRight: 5 }} />
+                    <Text style={styles.categoryPlayAllText}>Play all</Text>
+                  </TactilePressable>
+                </View>
+
+                {feed.categoryList.map((track, idx) => (
+                  <TactilePressable
+                    key={`${track.origin ?? 'track'}:${track.id}:${idx}`}
+                    activeScale={0.97}
+                    style={styles.categoryTrackRow}
+                    onPress={() => handlePlayTrackFromList(feed.categoryList, idx)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Play ${track.title} by ${track.artist}`}
+                  >
+                    <View style={styles.categoryArtwork}>
+                      <ArtworkPlaceholder track={track} size={48} />
+                    </View>
+
+                    <View style={styles.categoryMeta}>
+                      <Text style={styles.categoryTrackTitle} numberOfLines={1}>
+                        {track.title}
+                      </Text>
+                      <Text style={styles.categoryTrackSubtitle} numberOfLines={1}>
+                        {track.artist}
+                        {track.album ? ` • ${track.album}` : ''}
+                      </Text>
+                    </View>
+
+                    <Pressable
+                      style={styles.categoryOptionsButton}
+                      hitSlop={8}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        setSelectedTrackForOptions(track);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="More options"
+                    >
+                      <Ionicons name="ellipsis-vertical" size={18} color={homeColors.textMuted} />
+                    </Pressable>
+                  </TactilePressable>
+                ))}
+              </>
+            ) : null}
+          </View>
+        ) : (
+          /* Default Home feed when selectedCategory === null */
+          <>
+            {/* Discovery + personalized sections */}
+            {feed.recommendationFeed.map((section) => (
+              <SongGridSection
+                key={section.id}
+                title={section.title}
+                tracks={section.tracks}
+                onSelectTrack={(_track, idx) => handlePlayTrackFromList(section.tracks, idx)}
+                onPlayAll={() => handlePlayAllFromList(section.tracks)}
+                onOptionsPress={(track) => setSelectedTrackForOptions(track)}
+              />
+            ))}
+
+            {/* 1. Quick picks */}
             <SongGridSection
-              key={section.id}
-              title={section.title}
-              tracks={section.tracks}
-              onSelectTrack={(_track, idx) => handlePlayTrackFromList(section.tracks, idx)}
-              onPlayAll={() => handlePlayAllFromList(section.tracks)}
+              title="Quick picks"
+              tracks={feed.quickPicks}
+              onSelectTrack={(_track, idx) => handlePlayTrackFromList(feed.quickPicks, idx)}
+              onPlayAll={() => handlePlayAllFromList(feed.quickPicks)}
               onOptionsPress={(track) => setSelectedTrackForOptions(track)}
             />
-          ))}
 
-        {/* 1. Quick picks / Category picks — live InnerTube results */}
-        <SongGridSection
-          title={selectedCategory ? `${selectedCategory} picks` : 'Quick picks'}
-          tracks={feed.quickPicks}
-          onSelectTrack={(_track, idx) => handlePlayTrackFromList(feed.quickPicks, idx)}
-          onPlayAll={() => handlePlayAllFromList(feed.quickPicks)}
-          onOptionsPress={(track) => setSelectedTrackForOptions(track)}
-        />
+            {/* 2. Covers and remixes */}
+            <SongGridSection
+              title="Covers and remixes"
+              tracks={feed.covers}
+              onSelectTrack={(_track, idx) => handlePlayTrackFromList(feed.covers, idx)}
+              onPlayAll={() => handlePlayAllFromList(feed.covers)}
+              onOptionsPress={(track) => setSelectedTrackForOptions(track)}
+            />
 
-        {/* 2. Covers and remixes / Category mixes */}
-        <SongGridSection
-          title={selectedCategory ? `${selectedCategory} mixes & covers` : 'Covers and remixes'}
-          tracks={feed.covers}
-          onSelectTrack={(_track, idx) => handlePlayTrackFromList(feed.covers, idx)}
-          onPlayAll={() => handlePlayAllFromList(feed.covers)}
-          onOptionsPress={(track) => setSelectedTrackForOptions(track)}
-        />
+            {/* 3. Trending songs */}
+            <SongGridSection
+              title="Trending songs for you"
+              tracks={feed.trending}
+              onSelectTrack={(_track, idx) => handlePlayTrackFromList(feed.trending, idx)}
+              onPlayAll={() => handlePlayAllFromList(feed.trending)}
+              onOptionsPress={(track) => setSelectedTrackForOptions(track)}
+            />
 
-        {/* 3. Trending songs */}
-        <SongGridSection
-          title={selectedCategory ? `Trending ${selectedCategory.toLowerCase()}` : 'Trending songs for you'}
-          tracks={feed.trending}
-          onSelectTrack={(_track, idx) => handlePlayTrackFromList(feed.trending, idx)}
-          onPlayAll={() => handlePlayAllFromList(feed.trending)}
-          onOptionsPress={(track) => setSelectedTrackForOptions(track)}
-        />
-
-        {/* Default feed extra sections: Recently played, Up next, Liked songs */}
-        {selectedCategory === null ? (
-          <>
             {/* 4. Recently played */}
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
@@ -511,7 +597,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               />
             </View>
 
-            {/* 5. Up next — the live PlayerController queue */}
+            {/* 5. Up next */}
             {upcomingQueueTracks.length > 0 ? (
               <View style={styles.section}>
                 <UpNext
@@ -540,7 +626,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               <LikedSongsSection />
             </View>
           </>
-        ) : null}
+        )}
       </ScrollView>
 
       {/* 3-Dots Options Menu Bottom Sheet */}
@@ -608,5 +694,68 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: homeColors.textMuted,
     textAlign: 'center',
+  },
+  categoryHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingHorizontal: 2,
+  },
+  categoryHeaderTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: homeColors.text,
+  },
+  categoryHeaderSubtitle: {
+    fontSize: 13,
+    color: homeColors.textMuted,
+    marginTop: 2,
+  },
+  categoryPlayAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  categoryPlayAllText: {
+    color: '#000000',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  categoryTrackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 2,
+    borderRadius: 10,
+  },
+  categoryArtwork: {
+    width: 48,
+    height: 48,
+    borderRadius: 6,
+    overflow: 'hidden',
+    backgroundColor: '#1c1c1e',
+    marginRight: 12,
+  },
+  categoryMeta: {
+    flex: 1,
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  categoryTrackTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: homeColors.text,
+    marginBottom: 3,
+  },
+  categoryTrackSubtitle: {
+    fontSize: 13,
+    color: homeColors.textMuted,
+  },
+  categoryOptionsButton: {
+    padding: 8,
   },
 });

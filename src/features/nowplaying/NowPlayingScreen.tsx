@@ -882,9 +882,8 @@ export function NowPlayingScreen({ navigation }: NowPlayingScreenProps) {
             </LiquidGlassView>
           </Pressable>
 
-          {/* Lyrics shortcut — hidden while the "Show lyrics button"
-              setting is off (the sheet has no other opener). */}
-          {showLyricsButtonEnabled ? (
+          {/* Lyrics shortcut — hidden (display none) */}
+          {/* showLyricsButtonEnabled ? (
             <Pressable
               style={styles.saveGlassPill}
               onPress={openLyricsSheet}
@@ -895,8 +894,8 @@ export function NowPlayingScreen({ navigation }: NowPlayingScreenProps) {
                 <Ionicons name="document-text-outline" size={18} color="#ffffff" />
                 <Text style={styles.savePillText}>Lyrics</Text>
               </LiquidGlassView>
-          </Pressable>
-          ) : null}
+            </Pressable>
+          ) : null */}
 
           {/* Sleep timer indicator — shown only while a timer is armed.
               Tapping it reopens the sheet for reconfiguration/cancel. */}

@@ -189,13 +189,9 @@ class StreamResolutionModule : Module() {
   }
 
   /**
-   * expo-audio plays progressive HTTP sources. DASH/HLS entries would resolve
-   * fine but fail at playback, so they are filtered out rather than handed to
-   * the player. Matches NØTE's selection exactly.
-   *
-   * Kept as two named steps (filter, then pick) for readability. The
-   * predicates and their order are unchanged, so the candidate list and the
-   * selected stream are identical to the previous single-expression form.
+   * expo-audio plays progressive HTTP sources (M4A/AAC format 140).
+   * Dash/HLS adaptive entries require separate manifest parsing and are filtered
+   * out to ensure instant, reliable progressive playback without format errors.
    */
   private fun progressiveCandidates(streams: List<AudioStream>?): List<AudioStream>? =
     streams

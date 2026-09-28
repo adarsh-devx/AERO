@@ -35,9 +35,9 @@ test('quiet track → positive make-up gain, still inside the cap', () => {
   assert.equal(computeNormalizationGainMB(-1), 100);
 });
 
-test('loud track → attenuation of the same magnitude', () => {
-  // +9.49 dB above target → -949 mB.
-  assert.equal(computeNormalizationGainMB(9.49), -949);
+test('moderately loud track → attenuation of the same magnitude (unclamped)', () => {
+  // +2 dB above target → -200 mB.
+  assert.equal(computeNormalizationGainMB(2), -200);
 });
 
 test('gain above +3 dB is capped at MAX_GAIN_MB (+300 mB)', () => {
@@ -49,15 +49,15 @@ test('gain above +3 dB is capped at MAX_GAIN_MB (+300 mB)', () => {
   assert.equal(MAX_GAIN_MB, 300);
 });
 
-test('gain below -15 dB is floored at MIN_GAIN_MB (-1500 mB)', () => {
-  // +20 dB above target would be -2000 mB → clamped to -1500 mB.
+test('gain below -3 dB is floored at MIN_GAIN_MB (-300 mB)', () => {
+  // +20 dB above target would be -2000 mB → clamped to -300 mB.
   assert.equal(computeNormalizationGainMB(20), MIN_GAIN_MB);
-  assert.equal(MIN_GAIN_MB, -1500);
+  assert.equal(MIN_GAIN_MB, -300);
 });
 
 test('boundaries are inclusive: ±3 dB deviation lands exactly on the caps', () => {
   assert.equal(computeNormalizationGainMB(-3), MAX_GAIN_MB); // +300 mB
-  assert.equal(computeNormalizationGainMB(15), MIN_GAIN_MB); // -1500 mB
+  assert.equal(computeNormalizationGainMB(3), MIN_GAIN_MB); // -300 mB
 });
 
 test('ordinary values pass through unscaled-but-negated', () => {
