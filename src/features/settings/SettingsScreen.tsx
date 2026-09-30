@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -22,6 +22,10 @@ import {
 import { updateService } from '../../services/UpdateService';
 import { useDownloads } from '../downloads/useDownloads';
 import { homeColors, homeRadius, homeSpacing, sectionHeading } from '../home/theme';
+import { useYouTubeAuth } from '../youtube/useYouTubeAuth';
+import { youtubeAuthStore } from '../youtube/YouTubeAuthStore';
+import { ConnectYouTubeModal } from '../youtube/ConnectYouTubeModal';
+import { YouTubePlaylistsSheet } from '../youtube/YouTubePlaylistsSheet';
 import {
   SETTINGS_DEFINITIONS,
   type SettingDefinition,
@@ -64,6 +68,9 @@ function definitionsFor(section: SettingsSection): readonly BooleanSettingDefini
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const snapshot = useSettings();
+  const ytAuth = useYouTubeAuth();
+  const [isConnectModalVisible, setIsConnectModalVisible] = useState(false);
+  const [isPlaylistsSheetVisible, setIsPlaylistsSheetVisible] = useState(false);
   const { downloads: downloadList, activityList } = useDownloads();
 
   // Downloads eligible for removal: completed entries plus in-flight or
@@ -204,6 +211,92 @@ export function SettingsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* YouTube Account Integration (TOP) */}
+        <View style={[styles.section, { marginTop: 12 }]}>
+          <Text style={styles.sectionTitle}>YouTube</Text>
+          <View style={styles.card}>
+            {ytAuth.isConnected ? (
+              <>
+                <View style={styles.row}>
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowTitle}>{ytAuth.profile?.name || 'Connected to YouTube'}</Text>
+                    <Text style={styles.rowDescription}>
+                      {ytAuth.profile?.handle || ytAuth.profile?.email || 'Account connected'}
+                    </Text>
+                  </View>
+                  <View style={styles.connectedBadge}>
+                    <Text style={styles.connectedBadgeText}>Connected</Text>
+                  </View>
+                </View>
+
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.row,
+                    styles.rowDivider,
+                    pressed && styles.rowPressed,
+                  ]}
+                  onPress={() => setIsPlaylistsSheetVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="View YouTube Playlists"
+                >
+                  <View style={styles.rowText}>
+                    <Text style={styles.rowTitle}>YouTube Playlists</Text>
+                    <Text style={styles.rowDescription}>Play or import your YouTube playlists</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#8e8e93" />
+                </Pressable>
+
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.row,
+                    styles.rowDivider,
+                    pressed && styles.rowPressed,
+                  ]}
+                  onPress={() => {
+                    Alert.alert(
+                      'Disconnect YouTube?',
+                      'Your personal playlists and liked songs will remain on YouTube, but Aero will switch to guest mode.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Disconnect',
+                          style: 'destructive',
+                          onPress: () => void youtubeAuthStore.disconnect(),
+                        },
+                      ],
+                    );
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Disconnect YouTube account"
+                >
+                  <View style={styles.rowText}>
+                    <Text style={styles.actionTitle}>Disconnect YouTube Account</Text>
+                  </View>
+                  <Ionicons name="log-out-outline" size={18} color="#ff4d4d" />
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.row,
+                  pressed && styles.rowPressed,
+                ]}
+                onPress={() => setIsConnectModalVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Connect with YouTube"
+              >
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>Connect with YouTube</Text>
+                  <Text style={styles.rowDescription}>
+                    Access your personal playlists, liked music, and history
+                  </Text>
+                </View>
+                <Ionicons name="logo-youtube" size={24} color="#ff0000" />
+              </Pressable>
+            )}
+          </View>
+        </View>
+
         {/* Boolean settings, grouped by their central definitions */}
         {VALUE_SECTIONS.map((section) => {
           const definitions = definitionsFor(section);
@@ -303,6 +396,19 @@ export function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Connect with YouTube WebView Modal */}
+      <ConnectYouTubeModal
+        visible={isConnectModalVisible}
+        onClose={() => setIsConnectModalVisible(false)}
+        onSuccess={() => setIsPlaylistsSheetVisible(true)}
+      />
+
+      {/* YouTube Playlists Sheet */}
+      <YouTubePlaylistsSheet
+        visible={isPlaylistsSheetVisible}
+        onClose={() => setIsPlaylistsSheetVisible(false)}
+      />
     </View>
   );
 }
@@ -368,5 +474,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#ff4d4d',
+  },
+  connectedBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(76, 201, 240, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(76, 201, 240, 0.3)',
+  },
+  connectedBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4cc9f0',
   },
 });

@@ -32,6 +32,9 @@ import { TactilePressable } from '../common/TactilePressable';
 import { homeColors } from '../home/theme';
 import { ArtworkPlaceholder } from '../home/components/ArtworkPlaceholder';
 import { LiquidGlassView } from '../common/LiquidGlassView';
+import { useYouTubeAuth } from '../youtube/useYouTubeAuth';
+import { ConnectYouTubeModal } from '../youtube/ConnectYouTubeModal';
+import { YouTubePlaylistsSheet } from '../youtube/YouTubePlaylistsSheet';
 
 type LibraryScreenProps = NativeStackScreenProps<RootStackParamList, 'Library'>;
 
@@ -131,6 +134,10 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
     error: libraryError,
     reload: reloadLibrary,
   } = useLibraryTracks(activeTab === 'library');
+
+  const ytAuth = useYouTubeAuth();
+  const [isConnectYtVisible, setIsConnectYtVisible] = useState(false);
+  const [isYtPlaylistsVisible, setIsYtPlaylistsVisible] = useState(false);
 
   const [activeFilter, setActiveFilter] = useState<FilterType>('All');
   const [isGridView, setIsGridView] = useState(false);
@@ -578,6 +585,47 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
             );
           })}
         </ScrollView>
+      </View>
+
+      {/* YouTube Connection / Playlists Banner */}
+      <View style={styles.ytBannerContainer}>
+        {ytAuth.isConnected ? (
+          <TactilePressable
+            activeScale={0.97}
+            style={styles.ytBanner}
+            onPress={() => setIsYtPlaylistsVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="View YouTube Playlists"
+          >
+            <View style={styles.ytBannerIcon}>
+              <Ionicons name="logo-youtube" size={22} color="#ff0000" />
+            </View>
+            <View style={styles.ytBannerText}>
+              <Text style={styles.ytBannerTitle}>YouTube Playlists</Text>
+              <Text style={styles.ytBannerSubtitle}>
+                {ytAuth.profile?.name ? `Connected as ${ytAuth.profile.name}` : 'Tap to play or import'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#8e8e93" />
+          </TactilePressable>
+        ) : (
+          <TactilePressable
+            activeScale={0.97}
+            style={styles.ytBanner}
+            onPress={() => setIsConnectYtVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Connect with YouTube"
+          >
+            <View style={styles.ytBannerIcon}>
+              <Ionicons name="logo-youtube" size={22} color="#ff0000" />
+            </View>
+            <View style={styles.ytBannerText}>
+              <Text style={styles.ytBannerTitle}>Connect with YouTube</Text>
+              <Text style={styles.ytBannerSubtitle}>Import your playlists &amp; liked songs</Text>
+            </View>
+            <Ionicons name="add-circle-outline" size={20} color="#4cc9f0" />
+          </TactilePressable>
+        )}
       </View>
 
       {/* 3. Sort & View Toggle Row */}
@@ -1243,6 +1291,19 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
         track={optionsTrack}
         onClose={() => setAddToPlaylistVisible(false)}
       />
+
+      {/* Connect with YouTube Modal */}
+      <ConnectYouTubeModal
+        visible={isConnectYtVisible}
+        onClose={() => setIsConnectYtVisible(false)}
+        onSuccess={() => setIsYtPlaylistsVisible(true)}
+      />
+
+      {/* YouTube Playlists Sheet */}
+      <YouTubePlaylistsSheet
+        visible={isYtPlaylistsVisible}
+        onClose={() => setIsYtPlaylistsVisible(false)}
+      />
     </View>
   );
 }
@@ -1711,5 +1772,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#ffffff',
+  },
+  ytBannerContainer: {
+    paddingHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  ytBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    gap: 12,
+  },
+  ytBannerIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 0, 0, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ytBannerText: {
+    flex: 1,
+    gap: 2,
+  },
+  ytBannerTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  ytBannerSubtitle: {
+    fontSize: 12,
+    color: homeColors.textMuted,
   },
 });

@@ -217,6 +217,7 @@ export class UpdateService {
   // ── internals ────────────────────────────────────────────────────────
 
   private async init(): Promise<void> {
+    if (__DEV__) return; // Development mode: do not overwrite live developer sessions with production APKs
     await this.hydrate();
     if (!this.native.isAvailable()) return; // Expo Go: silent no-op
 
@@ -267,6 +268,7 @@ export class UpdateService {
   }
 
   private async maybeCheckByTtl(): Promise<void> {
+    if (__DEV__) return;
     const state = this.snapshot.state;
     if (state === 'checking' || state === 'downloading' || state === 'installing') return;
     const lastAttempt = this.record.lastAttemptAt ?? 0;

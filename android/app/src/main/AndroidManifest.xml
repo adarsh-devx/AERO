@@ -60,6 +60,13 @@
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="aero"/>
+        <data android:scheme="com.googleusercontent.apps.722751444760-5inp0ncft4f91oj337lqn1v4e7c3ejpf"/>
+      </intent-filter>
       <!-- Android Share Sheet: accept shared plain text (ACTION_SEND) so a
            YouTube / YouTube Music video or an Instagram Reel link shared
            from another app opens in Aero. text/plain only; parsing +
