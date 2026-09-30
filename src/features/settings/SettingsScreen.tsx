@@ -213,11 +213,17 @@ export function SettingsScreen() {
       >
         {/* YouTube Account Integration (TOP) */}
         <View style={[styles.section, { marginTop: 12 }]}>
-          <Text style={styles.sectionTitle}>YouTube</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons name="logo-youtube" size={18} color="#ff0000" />
+            <Text style={styles.sectionTitle}>YouTube</Text>
+          </View>
           <View style={styles.card}>
             {ytAuth.isConnected ? (
               <>
                 <View style={styles.row}>
+                  <View style={styles.userAvatarContainer}>
+                    <Ionicons name="person-circle" size={36} color="#4cc9f0" />
+                  </View>
                   <View style={styles.rowText}>
                     <Text style={styles.rowTitle}>{ytAuth.profile?.name || 'Connected to YouTube'}</Text>
                     <Text style={styles.rowDescription}>
@@ -225,6 +231,7 @@ export function SettingsScreen() {
                     </Text>
                   </View>
                   <View style={styles.connectedBadge}>
+                    <Ionicons name="checkmark-circle" size={12} color="#4cc9f0" style={{ marginRight: 4 }} />
                     <Text style={styles.connectedBadgeText}>Connected</Text>
                   </View>
                 </View>
@@ -239,11 +246,14 @@ export function SettingsScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="View YouTube Playlists"
                 >
+                  <View style={styles.rowLeadingIcon}>
+                    <Ionicons name="musical-notes-outline" size={20} color="#4cc9f0" />
+                  </View>
                   <View style={styles.rowText}>
                     <Text style={styles.rowTitle}>YouTube Playlists</Text>
                     <Text style={styles.rowDescription}>Play or import your YouTube playlists</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color="#8e8e93" />
+                  <Ionicons name="chevron-forward" size={18} color="rgba(255, 255, 255, 0.4)" />
                 </Pressable>
 
                 <Pressable
@@ -255,7 +265,7 @@ export function SettingsScreen() {
                   onPress={() => {
                     Alert.alert(
                       'Disconnect YouTube?',
-                      'Your personal playlists and liked songs will remain on YouTube, but Aero will switch to guest mode.',
+                      'Your personal playlists will remain on YouTube, but Aero will switch to guest mode.',
                       [
                         { text: 'Cancel', style: 'cancel' },
                         {
@@ -269,10 +279,14 @@ export function SettingsScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Disconnect YouTube account"
                 >
-                  <View style={styles.rowText}>
-                    <Text style={styles.actionTitle}>Disconnect YouTube Account</Text>
+                  <View style={styles.rowLeadingIcon}>
+                    <Ionicons name="log-out-outline" size={20} color="#ff4d4d" />
                   </View>
-                  <Ionicons name="log-out-outline" size={18} color="#ff4d4d" />
+                  <View style={styles.rowText}>
+                    <Text style={styles.actionTitle}>Disconnect Account</Text>
+                    <Text style={styles.rowDescription}>Switch back to guest mode</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="rgba(255, 77, 77, 0.4)" />
                 </Pressable>
               </>
             ) : (
@@ -285,13 +299,16 @@ export function SettingsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Connect with YouTube"
               >
+                <View style={[styles.rowLeadingIcon, styles.ytConnectIcon]}>
+                  <Ionicons name="logo-youtube" size={22} color="#ff0000" />
+                </View>
                 <View style={styles.rowText}>
                   <Text style={styles.rowTitle}>Connect with YouTube</Text>
                   <Text style={styles.rowDescription}>
-                    Access your personal playlists, liked music, and history
+                    Sync and play your personal YouTube playlists
                   </Text>
                 </View>
-                <Ionicons name="logo-youtube" size={24} color="#ff0000" />
+                <Ionicons name="chevron-forward" size={18} color="rgba(255, 255, 255, 0.4)" />
               </Pressable>
             )}
           </View>
@@ -301,9 +318,28 @@ export function SettingsScreen() {
         {VALUE_SECTIONS.map((section) => {
           const definitions = definitionsFor(section);
           if (definitions.length === 0) return null;
+
+          const getSectionIcon = (sec: string) => {
+            switch (sec) {
+              case 'Playback':
+                return 'play-circle-outline';
+              case 'Now Playing':
+                return 'disc-outline';
+              case 'Search':
+                return 'search-outline';
+              case 'Privacy':
+                return 'shield-checkmark-outline';
+              default:
+                return 'options-outline';
+            }
+          };
+
           return (
             <View key={section} style={styles.section}>
-              <Text style={styles.sectionTitle}>{section}</Text>
+              <View style={styles.sectionHeaderRow}>
+                <Ionicons name={getSectionIcon(section) as any} size={18} color="#4cc9f0" />
+                <Text style={styles.sectionTitle}>{section}</Text>
+              </View>
               <View style={styles.card}>
                 {definitions.map((definition, index) => (
                   <View
@@ -332,7 +368,10 @@ export function SettingsScreen() {
 
         {/* Data management — destructive actions through existing APIs */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Data</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons name="server-outline" size={18} color="#ffb703" />
+            <Text style={styles.sectionTitle}>Data Management</Text>
+          </View>
           <View style={styles.card}>
             {dataActions.map((action, index) => (
               <Pressable
@@ -350,7 +389,7 @@ export function SettingsScreen() {
                   <Text style={styles.actionTitle}>{action.title}</Text>
                   <Text style={styles.rowDescription}>{action.description}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color="#8e8e93" />
+                <Ionicons name="chevron-forward" size={18} color="rgba(255, 77, 77, 0.4)" />
               </Pressable>
             ))}
           </View>
@@ -358,15 +397,24 @@ export function SettingsScreen() {
 
         {/* About — real app metadata (app.json), read-only */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons name="information-circle-outline" size={18} color="#8e8e93" />
+            <Text style={styles.sectionTitle}>About</Text>
+          </View>
           <View style={styles.card}>
             <View style={styles.row}>
-              <Text style={styles.rowTitle}>App</Text>
+              <View style={styles.rowText}>
+                <Text style={styles.rowTitle}>App Name</Text>
+              </View>
               <Text style={styles.rowValue}>{appConfig.expo.name}</Text>
             </View>
             <View style={[styles.row, styles.rowDivider]}>
-              <Text style={styles.rowTitle}>Version</Text>
-              <Text style={styles.rowValue}>{appConfig.expo.version}</Text>
+              <View style={styles.rowText}>
+                <Text style={styles.rowTitle}>Version</Text>
+              </View>
+              <View style={styles.versionBadge}>
+                <Text style={styles.versionBadgeText}>v{appConfig.expo.version}</Text>
+              </View>
             </View>
             <Pressable
               style={({ pressed }) => [
@@ -389,7 +437,7 @@ export function SettingsScreen() {
             >
               <View style={styles.rowText}>
                 <Text style={styles.rowTitle}>Check for updates</Text>
-                <Text style={styles.rowDescription}>Check GitHub releases for new version</Text>
+                <Text style={styles.rowDescription}>Check GitHub releases for latest APK</Text>
               </View>
               <Ionicons name="cloud-download-outline" size={18} color="#4cc9f0" />
             </Pressable>
@@ -397,7 +445,7 @@ export function SettingsScreen() {
         </View>
       </ScrollView>
 
-      {/* Connect with YouTube WebView Modal */}
+      {/* Connect with YouTube Modal */}
       <ConnectYouTubeModal
         visible={isConnectModalVisible}
         onClose={() => setIsConnectModalVisible(false)}
@@ -416,72 +464,113 @@ export function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: homeColors.background,
+    backgroundColor: '#0a0a0d',
   },
   content: {
-    paddingHorizontal: homeSpacing.screenX,
+    paddingHorizontal: 16,
     paddingTop: 8,
   },
   section: {
-    marginTop: 24,
+    marginTop: 22,
   },
-  sectionTitle: {
-    ...sectionHeading,
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 10,
     marginLeft: 4,
   },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    color: '#ffffff',
+  },
   card: {
-    backgroundColor: homeColors.surface,
-    borderRadius: homeRadius.surface,
+    backgroundColor: '#12121a',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: homeColors.border,
+    borderColor: 'rgba(255, 255, 255, 0.07)',
     overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 16,
+    gap: 14,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   rowDivider: {
     borderTopWidth: 1,
-    borderTopColor: homeColors.border,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
   },
   rowPressed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  rowLeadingIcon: {
+    width: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ytConnectIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 0, 0, 0.1)',
+  },
+  userAvatarContainer: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rowText: {
     flex: 1,
-    gap: 4,
+    gap: 3,
   },
   rowTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: homeColors.text,
+    color: '#ffffff',
   },
   rowDescription: {
     fontSize: 12,
     lineHeight: 16,
-    color: homeColors.textMuted,
+    color: 'rgba(255, 255, 255, 0.55)',
   },
   rowValue: {
     fontSize: 14,
-    color: homeColors.textMuted,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  versionBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: 'rgba(76, 201, 240, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(76, 201, 240, 0.25)',
+  },
+  versionBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4cc9f0',
   },
   actionTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#ff4d4d',
+    color: '#ff5c5c',
   },
   connectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: 'rgba(76, 201, 240, 0.15)',
+    backgroundColor: 'rgba(76, 201, 240, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(76, 201, 240, 0.3)',
+    borderColor: 'rgba(76, 201, 240, 0.25)',
   },
   connectedBadgeText: {
     fontSize: 12,

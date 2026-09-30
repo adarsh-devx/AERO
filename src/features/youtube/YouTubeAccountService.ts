@@ -176,9 +176,13 @@ export class YouTubeAccountService {
   }
 
   /**
-   * Fetches all tracks inside a specific YouTube playlist with strict Music-Only filtering.
+   * Fetches all tracks inside a specific YouTube playlist or Mix with strict Music-Only filtering.
    */
-  async fetchPlaylistTracks(playlistId: string): Promise<readonly Track[]> {
+  async fetchPlaylistTracks(
+    playlistId: string,
+    videoId?: string,
+    queryContext?: string,
+  ): Promise<readonly Track[]> {
     // Refresh token if expired before making API calls
     const freshToken = await youtubeAuthStore.ensureFreshAccessToken();
 
@@ -189,12 +193,23 @@ export class YouTubeAccountService {
       playlistId.startsWith('VL');
 
     if (isYTMusicPlaylist) {
-      try {
-        const authHeaders = freshToken
-          ? { Authorization: `Bearer ${freshToken}` }
-          : youtubeAuthStore.getAuthHeaders();
+      const authHeaders = freshToken
+        ? { Authorization: `Bearer ${freshToken}` }
+        : youtubeAuthStore.getAuthHeaders();
 
-        // Use InnerTube next endpoint to get the playlist's watch queue
+      // 1. Try InnerTube next endpoint (watch queue)
+      try {
+        const nextPayload: Record<string, any> = {
+          playlistId,
+          isAudioOnly: true,
+          context: {
+            client: YTM_INNERTUBE_CLIENT,
+          },
+        };
+        if (videoId) {
+          nextPayload.videoId = videoId;
+        }
+
         const nextRes = await fetch(
           'https://music.youtube.com/youtubei/v1/next?prettyPrint=false',
           {
@@ -206,13 +221,7 @@ export class YouTubeAccountService {
               Origin: 'https://music.youtube.com',
               ...authHeaders,
             },
-            body: JSON.stringify({
-              playlistId,
-              isAudioOnly: true,
-              context: {
-                client: YTM_INNERTUBE_CLIENT,
-              },
-            }),
+            body: JSON.stringify(nextPayload),
           },
         );
 
@@ -225,42 +234,67 @@ export class YouTubeAccountService {
         console.warn('[YouTubeAccountService] InnerTube next fetch error:', err);
       }
 
-      // Fallback: try browse endpoint for VL/OLAK playlists
-      if (playlistId.startsWith('VL') || playlistId.startsWith('OLAK')) {
-        try {
-          const browseId = playlistId.startsWith('VL') ? playlistId : `VL${playlistId}`;
-          const authHeaders = freshToken
-            ? { Authorization: `Bearer ${freshToken}` }
-            : youtubeAuthStore.getAuthHeaders();
-
-          const browseRes = await fetch(
-            'https://music.youtube.com/youtubei/v1/browse?prettyPrint=false',
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                Referer: 'https://music.youtube.com/',
-                Origin: 'https://music.youtube.com',
-                ...authHeaders,
-              },
-              body: JSON.stringify({
-                browseId,
-                context: {
-                  client: YTM_INNERTUBE_CLIENT,
-                },
-              }),
+      // 2. Try browse endpoint with 'VL' prefix
+      try {
+        const browseId = playlistId.startsWith('VL') ? playlistId : `VL${playlistId}`;
+        const browseRes = await fetch(
+          'https://music.youtube.com/youtubei/v1/browse?prettyPrint=false',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              Referer: 'https://music.youtube.com/',
+              Origin: 'https://music.youtube.com',
+              ...authHeaders,
             },
-          );
+            body: JSON.stringify({
+              browseId,
+              context: {
+                client: YTM_INNERTUBE_CLIENT,
+              },
+            }),
+          },
+        );
 
-          if (browseRes.ok) {
-            const browseData = await browseRes.json();
-            const tracks = this.parseTracksFromBrowsePlaylist(browseData);
-            if (tracks.length > 0) return tracks;
-          }
-        } catch (err) {
-          console.warn('[YouTubeAccountService] InnerTube browse playlist error:', err);
+        if (browseRes.ok) {
+          const browseData = await browseRes.json();
+          const tracks = this.parseTracksFromBrowsePlaylist(browseData);
+          if (tracks.length > 0) return tracks;
         }
+      } catch (err) {
+        console.warn('[YouTubeAccountService] InnerTube browse playlist error:', err);
+      }
+
+      // 3. Try direct browse endpoint
+      try {
+        const browseRes = await fetch(
+          'https://music.youtube.com/youtubei/v1/browse?prettyPrint=false',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              Referer: 'https://music.youtube.com/',
+              Origin: 'https://music.youtube.com',
+              ...authHeaders,
+            },
+            body: JSON.stringify({
+              browseId: playlistId,
+              context: {
+                client: YTM_INNERTUBE_CLIENT,
+              },
+            }),
+          },
+        );
+
+        if (browseRes.ok) {
+          const browseData = await browseRes.json();
+          const tracks = this.parseTracksFromBrowsePlaylist(browseData);
+          if (tracks.length > 0) return tracks;
+        }
+      } catch (err) {
+        console.warn('[YouTubeAccountService] InnerTube direct browse error:', err);
       }
     }
 
@@ -390,10 +424,23 @@ export class YouTubeAccountService {
       }
     }
 
-    // 3. Fallback: Search for playlist title
+    // 3. Fallback: Search for queryContext or readable title (never raw hash IDs like RDTMAK...)
     try {
-      const searchRes = await musicService.search(playlistId);
-      return searchRes.tracks;
+      const isHashId =
+        playlistId.startsWith('RD') ||
+        playlistId.startsWith('VL') ||
+        playlistId.startsWith('PL') ||
+        playlistId.startsWith('OLAK');
+      const searchQuery = queryContext
+        ? `${queryContext} songs`
+        : !isHashId
+          ? `${playlistId} songs`
+          : null;
+      if (searchQuery) {
+        const searchRes = await musicService.search(searchQuery);
+        return searchRes.tracks;
+      }
+      return [];
     } catch {
       return [];
     }
@@ -519,16 +566,22 @@ export class YouTubeAccountService {
           }
 
           // Extract playlist/mix info
+          const playButtonEndpoint =
+            renderer?.overlay?.musicItemThumbnailOverlayRenderer?.content
+              ?.musicPlayButtonRenderer?.playNavigationEndpoint;
+
           const navEndpoint =
             renderer?.navigationEndpoint?.watchPlaylistEndpoint ||
             renderer?.navigationEndpoint?.watchEndpoint ||
-            renderer?.overlay?.musicItemThumbnailOverlayRenderer?.content
-              ?.musicPlayButtonRenderer?.playNavigationEndpoint
-              ?.watchPlaylistEndpoint;
+            playButtonEndpoint?.watchPlaylistEndpoint ||
+            playButtonEndpoint?.watchEndpoint ||
+            renderer?.navigationEndpoint;
 
           const playlistId =
             navEndpoint?.playlistId ||
-            renderer?.navigationEndpoint?.browseEndpoint?.browseId;
+            renderer?.navigationEndpoint?.browseEndpoint?.browseId ||
+            playButtonEndpoint?.watchPlaylistEndpoint?.playlistId ||
+            playButtonEndpoint?.watchEndpoint?.playlistId;
 
           allPlaylistIds.push(playlistId || '(none)');
 
@@ -566,8 +619,13 @@ export class YouTubeAccountService {
             [];
           const bestThumb = thumbs[thumbs.length - 1]?.url || thumbs[0]?.url;
 
-          // Extract seed videoId for playback
-          const videoId = navEndpoint?.videoId;
+          // Extract seed videoId for instantaneous 0ms playback
+          const videoId =
+            navEndpoint?.videoId ||
+            playButtonEndpoint?.watchEndpoint?.videoId ||
+            playButtonEndpoint?.watchPlaylistEndpoint?.videoId ||
+            renderer?.navigationEndpoint?.watchEndpoint?.videoId ||
+            renderer?.videoId;
 
           mixes.push({
             id: playlistId,

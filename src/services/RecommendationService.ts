@@ -845,12 +845,11 @@ export class RecommendationService {
 
     const recentTrack = history.find((track) => track.artist.trim().length > 0);
     if (recentTrack) {
-      const cleanRecentTitle = fold(recentTrack.title);
       const cleanRecentArtist = artistKey(recentTrack.artist);
       push(
-        `${cleanRecentTitle || cleanRecentArtist} songs`,
+        `${cleanRecentArtist || recentTrack.artist} top hit songs`,
         'recent-artist',
-        `Because You Played ${cleanRecentTitle || recentTrack.title}`,
+        `Because You Played ${recentTrack.title}`,
       );
     }
 
@@ -1008,6 +1007,10 @@ export class RecommendationService {
     const currentMetadata = current ? metadataKey(current) : null;
     const currentArtistFold = current ? fold(current.artist) : '';
 
+    const history = this.deps.history.getSnapshot().slice(0, RECENT_SIGNAL_DEPTH);
+    const recentTrack = history.find((track) => track.artist.trim().length > 0);
+    const recentMetadata = recentTrack ? metadataKey(recentTrack) : null;
+
     // Global, plan-ordered metadata dedup (§8/§14): each source claims a
     // track once; later sources never see it again this refresh. Sources
     // fed by several queries ACCUMULATE their pool (never overwrite).
@@ -1019,7 +1022,13 @@ export class RecommendationService {
         if (!isUsable(track)) continue; // invalid / placeholder metadata (§9)
         if (currentIdentity && trackIdentityKey(track) === currentIdentity) continue;
         const meta = metadataKey(track);
-        if (meta === currentMetadata) continue; // never resurface what's playing
+        if (meta === currentMetadata) continue; // never resurface what's currently playing
+        if (planned.source === 'recent-artist' && recentMetadata && meta === recentMetadata) {
+          continue; // never resurface the exact played track inside "Because You Played"
+        }
+        if (planned.source === 'related-song' && currentMetadata && meta === currentMetadata) {
+          continue; // never resurface the exact song inside "Related To This Song"
+        }
         if (seen.has(meta)) continue;
         seen.add(meta);
         pool.push(track);

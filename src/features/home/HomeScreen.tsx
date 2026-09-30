@@ -28,9 +28,7 @@ import { UpNext } from './components/UpNext';
 import { OptionsMenuSheet } from '../nowplaying/components/OptionsMenuSheet';
 import { AddToPlaylistSheet } from '../playlists/components/AddToPlaylistSheet';
 import { useYouTubeAuth } from '../youtube/useYouTubeAuth';
-import { youtubeAccountService, type YouTubeMixCard } from '../youtube/YouTubeAccountService';
 import { youtubeAuthStore } from '../youtube/YouTubeAuthStore';
-import { YouTubeMixesSection } from './components/YouTubeMixesSection';
 
 type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -215,9 +213,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     recommendationService.getSnapshot,
   );
 
-  const ytAuth = useYouTubeAuth();
-  const [youtubeMixes, setYoutubeMixes] = useState<readonly YouTubeMixCard[]>([]);
-
   const [viralReelsTracks, setViralReelsTracks] = useState<readonly Track[]>([]);
   const [quickPicksTracks, setQuickPicksTracks] = useState<readonly Track[]>([]);
   const [coversTracks, setCoversTracks] = useState<readonly Track[]>([]);
@@ -353,20 +348,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     void fetchDynamicHomeFeed(null);
   }, [fetchDynamicHomeFeed]);
 
-  // Fetch genuine YouTube mixes from InnerTube
-  useEffect(() => {
-    void youtubeAccountService
-      .fetchPersonalizedMixes()
-      .then((result) => {
-        if (result.length > 0) {
-          setYoutubeMixes(result);
-        }
-      })
-      .catch((err) => {
-        console.warn('[HomeScreen] fetchPersonalizedMixes failed:', err);
-      });
-  }, [ytAuth.isConnected]);
-
   // First Home visit: hydrate signals + fetch personalized sections.
   // Afterwards the service refreshes itself reactively (like/play/search
   // changes); pull-to-refresh below forces a fresh pass.
@@ -382,9 +363,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     const refreshTasks: Promise<any>[] = [
       fetchDynamicHomeFeed(selectedCategory),
       recommendationService.refresh({ force: true }),
-      youtubeAccountService.fetchPersonalizedMixes().then((result) => {
-        if (result.length > 0) setYoutubeMixes(result);
-      }),
     ];
     await Promise.allSettled(refreshTasks);
     if (isMountedRef.current) {
@@ -494,24 +472,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   const handlePlayAllFromList = (list: readonly Track[]) => {
     openNowPlayingWithQueue(list, 0);
-  };
-
-  const handlePlayMix = async (mix: YouTubeMixCard) => {
-    try {
-      let tracks = await youtubeAccountService.fetchPlaylistTracks(mix.id);
-      if (tracks.length === 0) {
-        // Fallback: search for top tracks matching mix title
-        const searchRes = await musicService.search(`${mix.title} songs`);
-        if (searchRes.tracks.length > 0) {
-          tracks = searchRes.tracks;
-        }
-      }
-      if (tracks.length > 0) {
-        openNowPlayingWithQueue(tracks, 0);
-      }
-    } catch (e) {
-      console.warn('Failed to play YouTube mix:', e);
-    }
   };
 
   return (
@@ -644,12 +604,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
                 onOptionsPress={(track) => setSelectedTrackForOptions(track)}
               />
             ))}
-
-            {/* 0. Genuine YouTube Mixes ("Mixed for you") */}
-            {youtubeMixes.length > 0 && (
-              <YouTubeMixesSection mixes={youtubeMixes} onSelectMix={handlePlayMix} />
-            )}
-
 
             {/* 1. Viral on Reels (Instagram trending hits & indie breakout) */}
             {feed.viralReels.length > 0 && (

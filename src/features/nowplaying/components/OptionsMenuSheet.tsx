@@ -254,10 +254,10 @@ export function OptionsMenuSheet({
               <View style={styles.handle} />
             </View>
 
-            {/* Header: Artwork, Title, Artist, Close (✕) - NO Like button */}
+            {/* Header: Artwork, Title, Artist, Close (✕) */}
             <View style={styles.header}>
               <View style={styles.artwork}>
-                <ArtworkPlaceholder track={track} size={48} />
+                <ArtworkPlaceholder track={track} size={44} />
               </View>
               <View style={styles.meta}>
                 <Text style={styles.title} numberOfLines={1}>
@@ -275,29 +275,31 @@ export function OptionsMenuSheet({
                 accessibilityRole="button"
                 accessibilityLabel="Close"
               >
-                <Ionicons name="close" size={24} color={homeColors.textMuted} />
+                <Ionicons name="close" size={18} color="rgba(255, 255, 255, 0.75)" />
               </Pressable>
             </View>
           </View>
 
-          {/* Action List Rows */}
+          {/* Action List Rows (Floating Liquid Glass Capsules) */}
           <View style={styles.menuList}>
+            {/* 1. Add to queue */}
             <Pressable
-              style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
+              style={({ pressed }) => [styles.glassPill, pressed && styles.glassPillPressed]}
               onPress={handleAddToQueue}
               accessibilityRole="button"
               accessibilityLabel="Add to queue"
             >
-              <Ionicons name="list-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Add to queue</Text>
+              <View style={styles.iconCircle}>
+                <Ionicons name="list" size={18} color="#ffffff" />
+              </View>
+              <Text style={styles.pillText}>Add to queue</Text>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255, 255, 255, 0.45)" />
             </Pressable>
 
-            {/* Download — identical state machine (downloaded / downloading /
-                queued / failed → delete / cancel / retry), now as a normal
-                list row. Hidden for MediaStore tracks, as before. */}
+            {/* 2. Download */}
             {canDownload ? (
               <Pressable
-                style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
+                style={({ pressed }) => [styles.glassPill, pressed && styles.glassPillPressed]}
                 onPress={handleToggleDownload}
                 accessibilityRole="button"
                 accessibilityLabel={
@@ -312,32 +314,50 @@ export function OptionsMenuSheet({
                           : 'Download track'
                 }
               >
-                <Ionicons name={downloadIcon} size={22} color={downloadColor} style={styles.menuIcon} />
+                <View
+                  style={[
+                    styles.iconCircle,
+                    downloaded && { backgroundColor: 'rgba(76, 201, 240, 0.18)', borderColor: 'rgba(76, 201, 240, 0.4)' },
+                    downloadFailed && { backgroundColor: 'rgba(255, 77, 109, 0.18)', borderColor: 'rgba(255, 77, 109, 0.4)' },
+                  ]}
+                >
+                  <Ionicons
+                    name={downloadIcon}
+                    size={18}
+                    color={downloadColor !== homeColors.text ? downloadColor : '#ffffff'}
+                  />
+                </View>
                 <Text
                   style={[
-                    styles.menuText,
+                    styles.pillText,
                     downloadColor !== homeColors.text && { color: downloadColor },
                   ]}
                 >
                   {downloadLabel}
                 </Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255, 255, 255, 0.45)" />
               </Pressable>
             ) : null}
 
+            {/* 3. Remove from queue */}
             {isUpcomingInQueue ? (
               <Pressable
-                style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
+                style={({ pressed }) => [styles.glassPill, pressed && styles.glassPillPressed]}
                 onPress={handleRemoveFromQueue}
                 accessibilityRole="button"
                 accessibilityLabel="Remove from queue"
               >
-                <Ionicons name="remove-circle-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
-                <Text style={styles.menuText}>Remove from queue</Text>
+                <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 77, 77, 0.15)', borderColor: 'rgba(255, 77, 77, 0.35)' }]}>
+                  <Ionicons name="remove-circle-outline" size={18} color="#ff4d4d" />
+                </View>
+                <Text style={[styles.pillText, { color: '#ff4d4d' }]}>Remove from queue</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(255, 77, 77, 0.45)" />
               </Pressable>
             ) : null}
 
+            {/* 4. Audio & Source Info */}
             <Pressable
-              style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
+              style={({ pressed }) => [styles.glassPill, pressed && styles.glassPillPressed]}
               onPress={() => {
                 handleDismiss();
                 if (onShowAudioInfo) onShowAudioInfo();
@@ -345,12 +365,16 @@ export function OptionsMenuSheet({
               accessibilityRole="button"
               accessibilityLabel="Audio and source information"
             >
-              <Ionicons name="information-circle-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Audio &amp; source info</Text>
+              <View style={styles.iconCircle}>
+                <Ionicons name="information" size={18} color="#ffffff" />
+              </View>
+              <Text style={styles.pillText}>Audio &amp; source info</Text>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255, 255, 255, 0.45)" />
             </Pressable>
 
+            {/* 5. Go to artist */}
             <Pressable
-              style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
+              style={({ pressed }) => [styles.glassPill, pressed && styles.glassPillPressed]}
               onPress={() => {
                 handleDismiss();
                 if (onGoToArtist && track.artist) {
@@ -360,30 +384,47 @@ export function OptionsMenuSheet({
               accessibilityRole="button"
               accessibilityLabel="Go to artist"
             >
-              <Ionicons name="person-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Go to artist</Text>
+              <View style={styles.iconCircle}>
+                <Ionicons name="person-outline" size={18} color="#ffffff" />
+              </View>
+              <Text style={styles.pillText}>Go to artist</Text>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255, 255, 255, 0.45)" />
             </Pressable>
 
-            <Pressable
-              style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
-              onPress={handleDismissQueue}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss queue"
-            >
-              <Ionicons name="trash-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Dismiss queue</Text>
-            </Pressable>
+            {/* 6. Sleep Timer */}
             {onShowSleepTimer ? (
               <Pressable
-                style={({ pressed }) => [styles.menuRow, pressed && styles.menuRowPressed]}
+                style={({ pressed }) => [styles.glassPill, pressed && styles.glassPillPressed]}
                 onPress={handleSleepTimer}
                 accessibilityRole="button"
                 accessibilityLabel={sleepTimerRowLabel}
               >
-                <Ionicons name="moon-outline" size={22} color={homeColors.textMuted} style={styles.menuIcon} />
-                <Text style={styles.menuText}>{sleepTimerRowLabel}</Text>
+                <View style={styles.iconCircle}>
+                  <Ionicons name="moon-outline" size={18} color="#ffffff" />
+                </View>
+                <Text style={styles.pillText}>Sleep Timer</Text>
+                {sleepTimerSnapshot.mode !== null ? (
+                  <View style={styles.timerPill}>
+                    <Text style={styles.timerPillText}>{sleepTimerRowLabel.replace('Sleep Timer · ', '')}</Text>
+                  </View>
+                ) : (
+                  <Ionicons name="chevron-forward" size={16} color="rgba(255, 255, 255, 0.45)" />
+                )}
               </Pressable>
             ) : null}
+
+            {/* 7. Dismiss queue (Destructive Red Glass Pill) */}
+            <Pressable
+              style={({ pressed }) => [styles.glassPill, styles.destructivePill, pressed && styles.destructivePillPressed]}
+              onPress={handleDismissQueue}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss queue"
+            >
+              <View style={styles.destructiveIconCircle}>
+                <Ionicons name="trash-outline" size={18} color="#ff4d4d" />
+              </View>
+              <Text style={[styles.pillText, { color: '#ff5c5c' }]}>Dismiss queue</Text>
+            </Pressable>
           </View>
         </Animated.View>
       </View>
@@ -401,92 +442,147 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    backgroundColor: 'rgba(18, 18, 24, 0.94)',
+    backgroundColor: 'rgba(18, 18, 26, 0.96)',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.35)',
+    borderTopColor: 'rgba(255, 255, 255, 0.32)',
     borderBottomColor: 'transparent',
     borderLeftColor: 'rgba(255, 255, 255, 0.1)',
     borderRightColor: 'rgba(255, 255, 255, 0.1)',
     paddingTop: 8,
-    paddingHorizontal: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.6,
+    paddingHorizontal: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -12 },
+    shadowOpacity: 0.7,
     shadowRadius: 24,
-    elevation: 20,
+    elevation: 25,
   },
   handleContainer: {
     alignItems: 'center',
     paddingVertical: 6,
   },
   handle: {
-    width: 44,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    marginBottom: 10,
   },
   artwork: {
-    width: 48,
-    height: 48,
-    borderRadius: homeRadius.artwork,
+    width: 44,
+    height: 44,
+    borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: homeColors.surface,
+    backgroundColor: '#181822',
     borderWidth: 1,
-    borderColor: homeColors.border,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  artworkImage: {
-    width: '100%',
-    height: '100%',
   },
   meta: {
     flex: 1,
     gap: 2,
   },
   title: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: homeColors.text,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   artist: {
     fontSize: 13,
-    color: homeColors.textMuted,
+    color: 'rgba(255, 255, 255, 0.55)',
   },
   closeButton: {
-    padding: 6,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   menuList: {
-    paddingVertical: 8,
+    paddingVertical: 4,
+    gap: 7,
   },
-  menuRow: {
+  glassPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    borderRadius: homeRadius.surface,
-  },
-  menuRowPressed: {
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 22,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.32)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.12)',
+    borderRightColor: 'rgba(255, 255, 255, 0.12)',
   },
-  menuIcon: {
-    width: 32,
+  glassPillPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    borderTopColor: 'rgba(255, 255, 255, 0.55)',
   },
-  menuText: {
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillText: {
+    flex: 1,
     fontSize: 15,
-    fontWeight: '500',
-    color: homeColors.text,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginLeft: 12,
+    letterSpacing: -0.2,
+  },
+  destructivePill: {
+    marginTop: 4,
+    backgroundColor: 'rgba(255, 59, 48, 0.12)',
+    borderTopColor: 'rgba(255, 99, 71, 0.45)',
+    borderBottomColor: 'rgba(255, 59, 48, 0.08)',
+    borderLeftColor: 'rgba(255, 59, 48, 0.18)',
+    borderRightColor: 'rgba(255, 59, 48, 0.18)',
+  },
+  destructivePillPressed: {
+    backgroundColor: 'rgba(255, 59, 48, 0.22)',
+  },
+  destructiveIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 59, 48, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 99, 71, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timerPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: 'rgba(76, 201, 240, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(76, 201, 240, 0.3)',
+  },
+  timerPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4cc9f0',
   },
 });

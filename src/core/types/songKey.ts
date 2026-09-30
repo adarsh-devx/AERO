@@ -131,10 +131,31 @@ function stripVersionSuffix(folded: string): string {
 }
 
 /**
+ * Normalizes common phonetic/romanization spelling variants in music metadata
+ * (e.g. "Udaariyan" -> "udarian", "Udaarian" -> "udarian", "Kesariya" -> "kesaria", "Deewani" -> "diwani")
+ */
+export function normalizePhoneticVariants(text: string): string {
+  if (!text) return '';
+  return text
+    // Normalize repeated dots/symbols: "song......." -> "song"
+    .replace(/[._\-–—~]+/g, ' ')
+    // Normalize doubled vowels: "aa" -> "a", "ee" -> "i", "oo" -> "u", "ii" -> "i"
+    .replace(/aa+/g, 'a')
+    .replace(/ee+/g, 'i')
+    .replace(/oo+/g, 'u')
+    .replace(/ii+/g, 'i')
+    // Normalize suffixes: "iyan", "iyaan", "iya" -> "ian" (e.g. "udaariyan" / "udaarian" -> "udarian")
+    .replace(/iya+n?\b/g, 'ian')
+    .replace(/ya+n?\b/g, 'an')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Extracts canonical title by stripping YouTube descriptors, multi-segment
  * pipe/dash tags (movie names, actor credits, channel names), brackets, and suffixes.
  */
-export function extractCanonicalTitle(rawTitle: string): string {
+export function extractCanonicalTitle(rawTitle: string, rawArtist?: string): string {
   if (!rawTitle) return '';
   let text = rawTitle.normalize('NFKC');
 
@@ -151,8 +172,6 @@ export function extractCanonicalTitle(rawTitle: string): string {
   );
 
   // 4. Split by primary delimiters (pipe |, forward-slash /, bullet •, em-dash —, en-dash –)
-  // Example: "LYRICAL: Kaise Hua | Kabir Singh | Shahid K | Vishal Mishra"
-  // Example: "Kabir Singh : Kaise Hua | Shahid K"
   const segments = text
     .split(/\s*[\/|•–—]\s*/)
     .map((s) => s.trim())
@@ -165,7 +184,6 @@ export function extractCanonicalTitle(rawTitle: string): string {
     const parts = mainSegment.split(':').map((p) => p.trim()).filter(Boolean);
     if (parts.length >= 2) {
       const right = parts.slice(1).join(' ').trim();
-      // If right side is not just a version suffix, it's the song title
       if (right.length > 0) {
         mainSegment = right;
       }
@@ -181,15 +199,26 @@ export function extractCanonicalTitle(rawTitle: string): string {
   }
 
   // 5. Clean punctuation, symbols, extra whitespace
-  const cleaned = mainSegment
+  let cleaned = mainSegment
     .toLowerCase()
     .replace(/[\p{P}\p{S}]+/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // 6. Strip version suffixes (e.g. "lyrics", "official video", "slowed reverb", "remix")
+  // 6. Strip artist name from title if embedded (e.g. "Udaarian Satinder Sartaaj" with artist "Satinder Sartaaj")
+  if (rawArtist) {
+    const cleanArtist = rawArtist.toLowerCase().replace(/[\p{P}\p{S}]+/gu, ' ').trim();
+    if (cleanArtist.length > 2 && cleaned.includes(cleanArtist)) {
+      cleaned = cleaned.replace(cleanArtist, ' ').replace(/\s+/g, ' ').trim();
+    }
+  }
+
+  // 7. Strip version suffixes (e.g. "lyrics", "official video", "slowed reverb", "remix")
   const stripped = stripVersionSuffix(cleaned);
-  return stripped.length > 0 ? stripped : cleaned;
+  const baseTitle = stripped.length > 0 ? stripped : cleaned;
+
+  // 8. Apply phonetic / vowel normalization
+  return normalizePhoneticVariants(baseTitle);
 }
 
 /**
@@ -197,8 +226,8 @@ export function extractCanonicalTitle(rawTitle: string): string {
  * identity comparisons (song keys, artist diversity caps, section
  * merging). Metadata equality with decoration removed, nothing looser.
  */
-export function fold(text: string): string {
-  return extractCanonicalTitle(text);
+export function fold(text: string, rawArtist?: string): string {
+  return extractCanonicalTitle(text, rawArtist);
 }
 
 /**
@@ -217,7 +246,7 @@ export function artistKey(artistName: string): string {
  * search dedup, and automatic-queue recommendation dedup.
  */
 export function songKey(track: Track): string {
-  return fold(track.title);
+  return fold(track.title, track.artist);
 }
 
 /**

@@ -873,6 +873,25 @@ export class PlayerController {
   }
 
   /**
+   * Appends multiple tracks to the end of the existing queue.
+   *
+   * If the queue is currently empty, starts playback of the first track
+   * and queues the rest. Updates queue and sourceQueue atomically with a
+   * single state notification.
+   */
+  addTracksToQueue(tracks: readonly Track[]): void {
+    if (!tracks || tracks.length === 0) return;
+    if (this.queue.length === 0 || this.queueIndex < 0) {
+      void this.playFromQueue(tracks, 0);
+      return;
+    }
+    this.queue = [...this.queue, ...tracks];
+    this.sourceQueue = [...this.sourceQueue, ...tracks];
+    this.syncShuffledOrder();
+    this.queueChanged();
+  }
+
+  /**
    * Removes the queue item at the given ABSOLUTE queue index.
    *
    * The currently playing item (queueIndex) is never removed — a queue

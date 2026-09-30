@@ -544,10 +544,6 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
           >
             <Ionicons name="settings-outline" size={24} color="#ffffff" />
           </Pressable>
-
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>A</Text>
-          </View>
         </View>
       </View>
 
@@ -621,7 +617,7 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
             </View>
             <View style={styles.ytBannerText}>
               <Text style={styles.ytBannerTitle}>Connect with YouTube</Text>
-              <Text style={styles.ytBannerSubtitle}>Import your playlists &amp; liked songs</Text>
+              <Text style={styles.ytBannerSubtitle}>Sync &amp; play your YouTube playlists</Text>
             </View>
             <Ionicons name="add-circle-outline" size={20} color="#4cc9f0" />
           </TactilePressable>
@@ -1125,22 +1121,21 @@ export function LibraryScreen({ navigation }: LibraryScreenProps) {
         )}
       </ScrollView>
 
-      {/* 5. Floating Action Button: + New in Liquid Glass */}
-      <View style={[styles.fabContainer, { bottom: insets.bottom + 76 }]}>
+      {/* 5. Floating Action Button: Circular + button in Liquid Glass */}
+      <View style={[styles.fabContainer, { bottom: insets.bottom + 98 }]}>
         <TactilePressable
-          activeScale={0.92}
+          activeScale={0.9}
           onPress={() => setIsCreateModalVisible(true)}
           accessibilityRole="button"
           accessibilityLabel="Create new playlist"
         >
           <LiquidGlassView
-            shape="pill"
+            shape="circle"
             intensity="ultra"
             glowColor="rgba(76, 201, 240, 0.55)"
-            style={styles.fabGlassPill}
+            style={styles.fabGlassCircle}
           >
-            <Ionicons name="add" size={20} color="#ffffff" />
-            <Text style={styles.fabText}>New</Text>
+            <Ionicons name="add" size={26} color="#ffffff" />
           </LiquidGlassView>
         </TactilePressable>
       </View>
@@ -1334,19 +1329,7 @@ const styles = StyleSheet.create({
   iconButton: {
     padding: 4,
   },
-  avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#9c27b0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
+
   filterBar: {
     marginTop: 10,
   },
@@ -1650,22 +1633,23 @@ const styles = StyleSheet.create({
   },
   fabContainer: {
     position: 'absolute',
-    right: 16,
+    right: 18,
+    zIndex: 10,
   },
-  fabGlassPill: {
-    flexDirection: 'row',
+  fabGlassCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    justifyContent: 'center',
     borderWidth: 1.5,
     borderTopColor: 'rgba(255, 255, 255, 0.45)',
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  fabText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#ffffff',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
   },
   modalBackdrop: {
     flex: 1,

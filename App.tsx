@@ -3,6 +3,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppNavigator } from './src/navigation';
 import { warmUpPlaybackStack } from './src/playback/ExperimentalTrackPreloader';
+import { AppSplashOverlay } from './src/features/common/AppSplashOverlay';
 
 // Pay the fixed cold-start costs of the play path before the user's first tap:
 // the single native AudioPlayer is otherwise constructed lazily inside the
@@ -22,6 +23,7 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       <AppNavigator />
+      <AppSplashOverlay />
     </SafeAreaProvider>
   );
 }

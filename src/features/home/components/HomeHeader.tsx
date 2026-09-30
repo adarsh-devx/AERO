@@ -1,15 +1,21 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 
+import type { RootStackParamList } from '../../../navigation';
 import { homeColors } from '../theme';
 
 const APP_ICON = require('../../../../assets/icon.png');
 
 /**
  * Aero App Bar Header:
- * Left: Exact App Icon Image Logo + "Aero" brand name.
- * Right: Profile Avatar (NO Notification Bell).
+ * Left: App Icon Image Logo + "Aero" brand name.
+ * Right: Settings Button.
  */
 export function HomeHeader() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
   return (
     <View style={styles.header}>
       {/* Brand Logo & Name */}
@@ -24,13 +30,15 @@ export function HomeHeader() {
         <Text style={styles.brandTitle}>Aero</Text>
       </View>
 
-      {/* Right: Profile Avatar ONLY (No notification bell) */}
+      {/* Right: Settings Icon */}
       <Pressable
-        style={styles.avatar}
+        style={styles.settingsButton}
+        onPress={() => navigation.navigate('Settings')}
+        hitSlop={8}
         accessibilityRole="button"
-        accessibilityLabel="Profile"
+        accessibilityLabel="Settings"
       >
-        <Text style={styles.avatarText}>A</Text>
+        <Ionicons name="settings-outline" size={22} color="rgba(255, 255, 255, 0.85)" />
       </Pressable>
     </View>
   );
@@ -65,19 +73,14 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     color: homeColors.text,
   },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  settingsButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderWidth: 1,
-    borderColor: homeColors.border,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: homeColors.text,
   },
 });
