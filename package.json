@@ -1,6 +1,6 @@
 {
   "name": "aero",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "AERO - Ultra-fast, Apple Liquid Glass-inspired streaming music player for Android built with React Native and Expo.",
   "main": "index.ts",
   "author": "Adarsh <adarsh-devx> (https://github.com/adarsh-devx)",

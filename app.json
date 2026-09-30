@@ -6,7 +6,7 @@
       "aero",
       "com.googleusercontent.apps.722751444760-5inp0ncft4f91oj337lqn1v4e7c3ejpf"
     ],
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "AERO - Ultra-fast Music streaming player for Android",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,7 +16,7 @@
       "supportsTablet": true
     },
     "android": {
-      "versionCode": 3,
+      "versionCode": 4,
       "permissions": [
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
